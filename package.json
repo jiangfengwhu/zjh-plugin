@@ -1,0 +1,21 @@
+{
+  "name": "zjh-plugin",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "init:application": "zjh-app init",
+    "build:application": "zjh-app build",
+    "publish:application": "zjh-app publish"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-native": "0.87.1"
+  },
+  "devDependencies": {
+    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/4466924e23640ba6c88adec6000a2febc4b6f0c10fe529d53720b2198e2703d6",
+    "@types/react": "19.3.0",
+    "typescript": "5.9.3"
+  }
+}
