@@ -17,7 +17,7 @@
 4. 按既有流程创建 PR；清单 source.repository 应为 jiangfengwhu/zjh-plugin，source.commit 必须等于最终 PR head，source.dirty 必须为 false。任何源码再次提交都必须重新发布。
 5. 不自行合入 main 或强推。用户加载体验后在工坊确认收下，由平台核对运行版本后合入 PR。
 
-基线不一致时获取本仓库历史并处理冲突，保留他人修改；不覆盖线上版本。发布只使用维护者注入的 R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY 和 BUNDLE_CATALOG_TOKEN；不输出凭证、不获取管理权限、不运行 Wrangler 登录或直接写 KV。凭证缺失时保留代码并报告阻塞。
+基线不一致时获取本仓库历史并处理冲突，保留他人修改；不覆盖线上版本。使用 SDK 1.1.4 或更新版本，按本轮平台提示先执行 zjh-app authorize <id> '<grant>'，授权只存入 Git 元数据。只通过服务端接口上传本应用包体与候选；不使用共享 R2、BUNDLE_CATALOG_TOKEN、管理权限、Wrangler 登录或直接写 KV。不得输出或提交授权；授权缺失、过期或轮次失效时保留代码并报告阻塞。
 
 最后用中文说明实现、实际发布结果及剩余限制；只有上传和清单写入成功才能报告已发布。跨仓库需求说明所需 API，由本地维护者处理。
 
@@ -27,10 +27,10 @@
 
 同一 session 的已收下 PR 不再续写；从 origin/main 同步后创建新的任务分支与 PR。别的应用先合入允许继续交付；有合入冲突或本应用基线改变时，在当前 session 同步 main、保留他人修改、提交后重新发布。
 
-基于他人作品创作时复制其 src/assets 到平台指定的新应用目录，保留新 appId/moduleBase，application.json 记录 originalAppId，不修改原作。分享由用户在收下后操作，不自行上架。
+基于他人作品创作时 init 从平台锁定的 originalCommit 复制 src/assets 和纯 JS 依赖，保留新 appId/moduleBase，application.json 记录 originalAppId、originalReleaseId、originalCommit，不改用 main 上的新版本或修改原作。分享由用户在收下后提交审核，维护者审核执行版本后才上架。
 
 根 package.json 只声明 SDK 与仓库脚本。应用 package.json 仅保留 name/private 与应用自己的纯 JS 依赖，不维护重复 version；应用版本以 application.json 为准。
 
 ## 版本流转边界
 
-SDK 1.1.3 的 publish:application 只上传候选，不更新已收下或公开指针。候选基线受鉴权保护，发布工具自动使用 BUNDLE_CATALOG_TOKEN 读取；不要去掉身份头或改读公开版本绕过候选基线。发布工具会提交预期候选版本，由服务端原子比较；遇到 409 冲突时同步最新基线、处理冲突并重新提交发布，不直接覆盖候选或写 KV。用户在工坊收下后才更新 accepted，主动分享才更新 public。内置应用也遵守这个边界。不得调用官方 release 接口、写稳定指针或请求 OFFICIAL_PUBLISH_TOKEN；该凭证只留在本地维护者侧。候选发包成功应说明“候选已发布，等待体验与收下”。
+SDK 1.1.4 的 publish:application 只上传候选，不更新已收下或公开指针。候选基线受鉴权保护，使用本应用本轮授权读取；不要去掉身份头或改读公开版本绕过候选基线。发布工具提交预期候选版本，由服务端按应用串行并原子比较；遇到 409 冲突时同步最新基线、处理冲突并重新发布，不直接覆盖候选或写 KV。用户收下后更新 accepted，主动分享并经维护者审核后才更新 public；审核期间保留旧公开版本。内置应用也遵守这个边界。不得调用官方 release、审核接口或请求 OFFICIAL_PUBLISH_TOKEN。候选发包成功应说明“候选已发布，等待体验与收下”。

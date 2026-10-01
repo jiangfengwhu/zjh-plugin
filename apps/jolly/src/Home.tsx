@@ -13,7 +13,7 @@ export default function JollyHome() {
   const [target, setTarget] = useState(() => context.storage.get("workshopTarget") || "");
   const [workshop, setWorkshop] = useState(false);
   const selected = useRef(target); selected.current = target;
-  useEffect(() => context.storage.subscribe("workspaces", () => setWorkspaces(readWorkspaces())), []);
+  useEffect(() => context.storage.subscribe("workspaces", () => { const next = readWorkspaces(); setWorkspaces(next); if (!next.some(item => item.appId === selected.current)) { setWorkshop(false); setTarget(""); } }), []);
   useEffect(() => {
     const accept = () => {
       if (!context.storage.get("openWorkshop")) return;
@@ -45,6 +45,6 @@ function WorkspaceRow({ item, onPress }: { item: Workspace; onPress: () => void 
   const [sharing, setSharing] = useState(readSharing);
   useEffect(() => context.storage.subscribe(`sharing.${item.appId}`, () => setSharing(readSharing())), [item.appId]);
   const label = run.stage ? workshopStageLabels[run.stage] : "尚未开始";
-  return <Pressy accessibilityRole="button" onPress={onPress}><Surface radius={20} style={styles.progress}><Text style={styles.name}>{item.title}</Text><Text style={styles.copy}>{run.wish || "说说想做什么"}</Text><Text style={styles.caption}>{label}{sharing.releaseId ? sharing.hasUpdate ? " · 有新版本待分享" : " · 已分享" : " · 未分享"}</Text></Surface></Pressy>;
+  return <Pressy accessibilityRole="button" onPress={onPress}><Surface radius={20} style={styles.progress}><Text style={styles.name}>{item.title}</Text><Text style={styles.copy}>{run.wish || "说说想做什么"}</Text><Text style={styles.caption}>{label}{sharing.reviewPending ? " · 市场审核中" : sharing.releaseId ? sharing.hasUpdate ? " · 有新版本待分享" : " · 已分享" : " · 未分享"}</Text></Surface></Pressy>;
 }
 const styles = themedStyleSheet(t => ({ screen: { flex: 1, backgroundColor: t.canvas }, header: { padding: 20, gap: 12, flexDirection: "row", alignItems: "center" }, headerTitle: { color: t.ink1, fontSize: 18, fontWeight: "600" }, content: { padding: 24, paddingBottom: 40, gap: 20 }, hero: { alignItems: "center", gap: 14, paddingVertical: 14 }, title: { fontFamily: t.serif, fontSize: 28, color: t.ink1, fontWeight: "700" }, caption: { color: t.ink3, fontSize: 13, lineHeight: 20 }, workshop: { padding: 20, flexDirection: "row", gap: 15, alignItems: "center" }, name: { color: t.ink1, fontSize: 18, fontWeight: "600" }, copy: { color: t.ink2, fontSize: 14, lineHeight: 22 }, progress: { padding: 20, gap: 9 } }));

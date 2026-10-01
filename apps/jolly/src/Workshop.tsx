@@ -6,6 +6,7 @@ import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type Wo
 type PendingPackage = { id: string; kind: "layer" | "application"; bytes: number; sha256: string };
 export default function Workshop({ appId, title, originalAppId, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
+  const [accountScope] = useState(() => context.storage.get("__accountScope"));
   const [service] = useState(() => getCreationService(appId, originalAppId));
   const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = service;
   const pluginsReady = true;
@@ -41,6 +42,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   // must not lose progress or keep a failed creation's feed post around.
   const live = useRef({ startedAt: 0, wish: "", status: "", phase: "idle" as JollyPhase, steps: [] as string[] });
   function persistProgress() {
+    if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
     const value = live.current;
     if (!value.wish.trim() || !value.startedAt) return;
     noteJollyRun({ appId, phase: value.phase, wish: value.wish, status: value.status, steps: value.steps });
@@ -53,6 +55,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   function setWorkshopPhase(value: JollyPhase) { live.current.phase = value; updateWorkshopPhase(value); persistProgress(); }
 
   useEffect(() => {
+    if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
     if (sessionLoading) return;
     const prev = readJollyRun(appId);
     const stage: WorkshopStage = busy ? "making" : accepted ? "accepted" : workshopPhase === "failed" ? "failed" : workshopPhase === "stopped" ? "paused" : awaitingReply ? deliveryStage === "blocked" ? "blocked" : "reply" : awaitingConfirmation ? deliveryStage : "draft";
