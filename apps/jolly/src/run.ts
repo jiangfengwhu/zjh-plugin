@@ -5,7 +5,10 @@ const upsertFeedPost = getAppContext().feed.upsert;
 
 export type JollyPhase = "idle" | "making" | "ready" | "stopped" | "failed";
 
+export type WorkshopStage = "draft" | "making" | "reply" | "load" | "accept" | "accepted" | "paused" | "failed" | "blocked";
+export const workshopStageLabels: Record<WorkshopStage, string> = { draft: "尚未开始", making: "制作中", reply: "等待回复", load: "待体验", accept: "待收下", accepted: "已收下", paused: "已暂停", failed: "制作未完成", blocked: "需要处理" };
 export type JollyRun = {
+  stage?: WorkshopStage;
   phase: JollyPhase;
   wish: string;
   status: string;
@@ -26,6 +29,7 @@ export function readJollyRun(appId?: string): JollyRun {
     if (phase !== "idle" && phase !== "making" && phase !== "ready" && phase !== "stopped" && phase !== "failed") return EMPTY;
     return {
       phase,
+      stage: parsed.stage && workshopStageLabels[parsed.stage] ? parsed.stage : undefined,
       wish: typeof parsed.wish === "string" ? parsed.wish : "",
       status: typeof parsed.status === "string" ? parsed.status : "",
       steps: Array.isArray(parsed.steps) ? parsed.steps.filter((item) => typeof item === "string" && item.trim()).slice(-4) : [],
@@ -51,16 +55,17 @@ export function jollyPhaseFromStatus(busy: boolean, status: string): JollyPhase 
   return "failed";
 }
 
-export function noteJollyRun(input: { appId?: string; phase: JollyPhase; wish: string; status: string; steps?: string[] }): { prev: JollyRun; next: JollyRun } | undefined {
+export function noteJollyRun(input: { appId?: string; phase: JollyPhase; wish: string; status: string; steps?: string[]; stage?: WorkshopStage }): { prev: JollyRun; next: JollyRun } | undefined {
+  const prev = readJollyRun(input.appId);
   const next: JollyRun = {
+    stage: input.stage ?? prev.stage,
     phase: input.phase,
     wish: input.wish.trim(),
     status: input.status.trim(),
     steps: (input.steps ?? []).map((item) => item.trim()).filter(Boolean).slice(-4),
     at: Date.now(),
   };
-  const prev = readJollyRun(input.appId);
-  if (prev.phase === next.phase && prev.wish === next.wish && prev.status === next.status && prev.steps.join("\n") === next.steps.join("\n")) return;
+  if (prev.stage === next.stage && prev.phase === next.phase && prev.wish === next.wish && prev.status === next.status && prev.steps.join("\n") === next.steps.join("\n")) return;
   if (input.appId) writePackageValue(`run:${input.appId}`, JSON.stringify(next));
   writePackageValue(KEY, JSON.stringify(next));
   console.log("jolly run", next.phase, next.status);

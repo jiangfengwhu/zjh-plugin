@@ -304,7 +304,7 @@ export const AgentScreen = memo(function AgentScreen({
   }, [hasSession, stillRunning, traces.length, runningTrace, status, hasError, finalReport]);
 
   const phase: "busy" | "error" | "done" | "idle" = stillRunning ? "busy" : hasError ? "error" : hasSession ? "done" : "idle";
-  const phaseLabel = awaitingConfirmation ? "待收下" : accepted ? "可继续修改" : awaitingReply ? "等你回应" : { busy: "制作中", error: "有提示", done: "已收好", idle: "待命" }[phase];
+  const phaseLabel = awaitingConfirmation ? workshopReady ? "待收下" : "待体验" : accepted ? "可继续修改" : awaitingReply ? "等你回应" : { busy: "制作中", error: "有提示", done: "已收好", idle: "待命" }[phase];
   const phaseTone =
     phase === "busy"
       ? { dot: colors.accent, text: colors.accentText, tint: colors.accentTint }
@@ -343,7 +343,7 @@ export const AgentScreen = memo(function AgentScreen({
             <View style={styles.sessionSeal}><Icon name="edit" size={16} color={colors.accentText} /></View>
             <View style={styles.heroCopy}>
               <Text style={styles.sessionTitle}>{sessionLoading ? "正在接回你的心愿" : "这一份心愿，我们接着做"}</Text>
-              <Text style={styles.caption}>{awaitingConfirmation ? (workshopReady ? "正在体验这次作品，满意后亲自收下。" : "代码已完成，正在等待发布或加载。") : awaitingReply ? "伙伴在等你的回应，回复会留在这次制作里。" : "这个应用沿用自己的 session，其他应用可以同时制作。"}</Text>
+              <Text style={styles.caption}>{awaitingConfirmation ? (workshopReady ? "正在体验这次作品，满意后亲自收下。" : "代码已完成，正在等待发布或加载。") : awaitingReply ? "伙伴在等你的回应，回复会留在这次制作里。" : "这份作品会接着上次的进度制作，其他作品也可以同时开始。"}</Text>
             </View>
             {!busy && !awaitingConfirmation && !awaitingReply ? (
               <Pressy accessibilityRole="button" disabled={sessionLoading} onPress={onNewSession} style={styles.sessionButton}>

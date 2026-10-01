@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
-import { noteJollyRun, syncJollyFeedPost, type JollyPhase } from "./run";
+import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type WorkshopStage } from "./run";
 type PendingPackage = { id: string; kind: "layer" | "application"; bytes: number; sha256: string };
-export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop }: { appId: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
+export default function Workshop({ appId, title, originalAppId, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
   const [service] = useState(() => getCreationService(appId, originalAppId));
   const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = service;
@@ -27,6 +27,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
   const [awaitingReply, setAwaitingReply] = useState(false);
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState("");
+  const [deliveryStage, setDeliveryStage] = useState<WorkshopStage>("draft");
   const confirmingRef = useRef(false);
   const cloudStop = useRef(false);
   const stopRequested = useRef(false);
@@ -50,6 +51,14 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
   function setStatus(value: string) { live.current.status = value; updateStatus(value); persistProgress(); }
   function setTraces(value: AgentTrace[]) { live.current.steps = [...new Set(value.map(item => item.title.trim()).filter(Boolean))].slice(-4); updateTraces(value); persistProgress(); }
   function setWorkshopPhase(value: JollyPhase) { live.current.phase = value; updateWorkshopPhase(value); persistProgress(); }
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    const prev = readJollyRun(appId);
+    const stage: WorkshopStage = busy ? "making" : accepted ? "accepted" : workshopPhase === "failed" ? "failed" : workshopPhase === "stopped" ? "paused" : awaitingReply ? deliveryStage === "blocked" ? "blocked" : "reply" : awaitingConfirmation ? deliveryStage : "draft";
+    if (stage === "draft" && sessionId) return;
+    noteJollyRun({ appId, stage, phase: accepted ? "ready" : workshopPhase, wish: prompt || prev.wish, status: status || prev.status, steps: prev.steps });
+  }, [busy, accepted, workshopPhase, awaitingReply, awaitingConfirmation, deliveryStage, prompt, status, sessionLoading, sessionId]);
 
   async function refreshUpdates(force = false, strict = false): Promise<PendingPackage[]> {
     try { return await checkPackageUpdates(); } catch (error) { if (strict) throw error; return []; }
@@ -129,6 +138,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
     setWorkshopReady(false);
     try {
       const workshop = await workshopStatus(session);
+      setDeliveryStage(workshop.delivery === "loaded" ? "accept" : workshop.delivery === "update" ? "load" : "blocked");
       setConfirmationMessage(workshop.message || "暂时无法核对作品发布状态，请稍后重试。");
       if (workshop.delivery === "loaded") {
         setWorkshopReady(true);
@@ -174,6 +184,12 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
     const startedAt = continuing && runStartedAt > 0 ? runStartedAt : Date.now();
     const wish = continuing && prompt.trim() ? prompt : text;
     setAccepted(false);
+    setDeliveryStage("making");
+    if (title === "新应用" || title === "未命名作品") {
+      const workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
+      const workspace = workspaces.find((item: { appId: string }) => item.appId === appId);
+      if (workspace) { workspace.title = text.replace(/\s+/g, " ").slice(0, 20); context.storage.set("workspaces", JSON.stringify(workspaces)); }
+    }
     setRunStartedAt(startedAt);
     setPrompt(wish);
     setWorkshopPhase("making");
@@ -378,7 +394,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
   }
 
   return <AgentScreen
-    accepted={accepted} targetTitle={appId}
+    accepted={accepted} targetTitle={title === appId ? "未命名作品" : title}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}
     awaitingConfirmation={awaitingConfirmation} workshopReady={workshopReady} awaitingReply={awaitingReply}
