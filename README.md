@@ -15,3 +15,5 @@
 
 AI Coding 输入为本文件、AGENTS.md、目标应用、SDK 公开类型、SDK platform.json、模板及根锁文件；不需要访问 SDK/Android/server 仓库。
 SDK、宿主和工具由 jiangfengwhu/zjh-dynamic 维护。新增原生能力、共享依赖升级与 SDK 契约变更交给平台维护者。
+
+Jolly 的主页在 apps/jolly/src/Home.tsx，工坊是它内部的页面。应用市场由平台维护；新创作的应用不会自动公开上架。

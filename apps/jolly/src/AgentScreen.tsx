@@ -14,7 +14,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { EdgeModal as Modal, Screen, ScreenBar } from "@zijinhua/app-sdk/ui";
 import { PromptBar } from "@zijinhua/app-sdk/ui";
-import { GiltLine, Icon, Pressy, SectionTitle, Surface } from "@zijinhua/app-sdk/ui";
+import { BackChip, GiltLine, Icon, Pressy, SectionTitle, Surface } from "@zijinhua/app-sdk/ui";
 import { JollyLoading, JollyVideoPlayer, type JollyState } from "./ui";
 import { themedStyleSheet, useTheme, type Theme } from "@zijinhua/app-sdk/ui";
 import { AGENT_PROVIDERS } from "./agentProviders";
@@ -314,6 +314,7 @@ export const AgentScreen = memo(function AgentScreen({
   return (
     <Screen style={styles.screen}>
       <ScreenBar style={styles.header}>
+        {onBack ? <BackChip onPress={onBack} /> : null}
         <View style={styles.headerCopy}>
           <Text style={styles.title}>工坊</Text>
           <Text style={styles.caption} numberOfLines={1}>

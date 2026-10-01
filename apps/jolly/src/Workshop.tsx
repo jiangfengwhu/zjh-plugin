@@ -2,22 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
-import { jollyPhaseFromStatus, noteJollyRun, syncJollyFeedPost, type JollyPhase } from "./run";
+import { noteJollyRun, syncJollyFeedPost, type JollyPhase } from "./run";
 const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = getCreationService();
 type PendingPackage = Awaited<ReturnType<typeof checkPackageUpdates>>[number];
-export default function Workshop() {
+export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => void; onShowWorkshop?: () => void } = {}) {
   const context = getAppContext();
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [status, setStatus] = useState("");
+  const [prompt, updatePrompt] = useState("");
+  const [status, updateStatus] = useState("");
   const [report, setReport] = useState("");
-  const [traces, setTraces] = useState<AgentTrace[]>([]);
+  const [traces, updateTraces] = useState<AgentTrace[]>([]);
   const [busy, setBusy] = useState(false);
   const [providerId, setProviderId] = useState("jules");
   const [updateBusy, setUpdateBusy] = useState(false);
-  const [runStartedAt, setRunStartedAt] = useState(0);
-  const [workshopPhase, setWorkshopPhase] = useState<JollyPhase>("idle");
+  const [runStartedAt, updateStartedAt] = useState(0);
+  const [workshopPhase, updateWorkshopPhase] = useState<JollyPhase>("idle");
   const [sessionId, setSessionId] = useState("");
   const [sessionLoading, setSessionLoading] = useState(true);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -30,15 +30,23 @@ export default function Workshop() {
   const cloudRun = useRef<{ runId?: string } | null>(null);
   const busyRef = useRef(false);
   const resumedCloud = useRef(false);
+  const detached = useRef(false);
+  useEffect(() => () => { detached.current = true; cloudStop.current = true; }, []);
 
-  useEffect(() => {
-    if (!pluginsReady) return;
-    const phase = jollyPhaseFromStatus(busy, status);
-    if (phase === "idle" && !prompt.trim()) return;
-    const steps = [...new Set(traces.map((item) => item.title.trim()).filter(Boolean))].slice(-4);
-    noteJollyRun({ phase, wish: prompt, status, steps });
-    syncJollyFeedPost({ startedAt: runStartedAt, phase: workshopPhase, wish: prompt, status, steps });
-  }, [pluginsReady, busy, status, prompt, traces, runStartedAt, workshopPhase]);
+  // Persist from polling callbacks as well as the visible page: leaving Jolly
+  // must not lose progress or keep a failed creation's feed post around.
+  const live = useRef({ startedAt: 0, wish: "", status: "", phase: "idle" as JollyPhase, steps: [] as string[] });
+  function persistProgress() {
+    const value = live.current;
+    if (!value.wish.trim() || !value.startedAt) return;
+    noteJollyRun({ phase: value.phase, wish: value.wish, status: value.status, steps: value.steps });
+    syncJollyFeedPost({ ...value });
+  }
+  function setPrompt(value: string) { live.current.wish = value; updatePrompt(value); persistProgress(); }
+  function setRunStartedAt(value: number) { live.current.startedAt = value; updateStartedAt(value); }
+  function setStatus(value: string) { live.current.status = value; updateStatus(value); persistProgress(); }
+  function setTraces(value: AgentTrace[]) { live.current.steps = [...new Set(value.map(item => item.title.trim()).filter(Boolean))].slice(-4); updateTraces(value); persistProgress(); }
+  function setWorkshopPhase(value: JollyPhase) { live.current.phase = value; updateWorkshopPhase(value); persistProgress(); }
 
   async function refreshUpdates(force = false, strict = false): Promise<PendingPackage[]> {
     try { return await checkPackageUpdates(); } catch (error) { if (strict) throw error; return []; }
@@ -169,7 +177,7 @@ export default function Workshop() {
     setConfirmationMessage("");
     setTraces([]);
     setReport("");
-    context.navigation.create();
+    onShowWorkshop?.();
     setStatus(status);
     cloudStop.current = false;
     cloudRun.current = {};
@@ -187,6 +195,7 @@ export default function Workshop() {
         shouldStop: () => cloudStop.current,
       });
       if (outcome === "cancelled") {
+        if (detached.current) return;
         setSessionId("");
         setWorkshopPhase("stopped");
         setStatus("已停止");
@@ -217,7 +226,7 @@ export default function Workshop() {
       cloudRun.current = null;
       busyRef.current = false;
       setBusy(false);
-      if (!waiting) clearJulesRun();
+      if (!waiting && !detached.current) clearJulesRun();
     }
   }
 
@@ -288,6 +297,7 @@ export default function Workshop() {
           shouldStop: () => cloudStop.current,
         }, startedAt);
         if (outcome === "cancelled") {
+        if (detached.current) return;
           setSessionId("");
           setWorkshopPhase("stopped");
           setStatus("已停止");
@@ -316,7 +326,7 @@ export default function Workshop() {
         cloudRun.current = null;
         busyRef.current = false;
         setBusy(false);
-        if (!waiting) clearJulesRun();
+        if (!waiting && !detached.current) clearJulesRun();
       }
       return;
     }
@@ -352,8 +362,7 @@ export default function Workshop() {
   }
 
   function showAgent() {
-    context.navigation.create();
-    setTimeout(() => context.navigation.create(), 400);
+    onShowWorkshop?.();
   }
 
   async function submit() {
@@ -370,6 +379,6 @@ export default function Workshop() {
     confirmationBusy={confirmationBusy} confirmationMessage={confirmationMessage}
     onConfirmWish={() => void confirmWish()} onLoadWish={() => void loadWish()}
     providerId={providerId} onProviderChange={setProviderId} onChange={setRequirement}
-    onSubmit={() => void submit()} onStop={() => void stop()} onBack={context.navigation.back}
+    onSubmit={() => void submit()} onStop={() => void stop()} onBack={onBack ?? context.navigation.back}
   />;
 }
