@@ -19,7 +19,7 @@ import { JollyLoading, JollyVideoPlayer, type JollyState } from "./ui";
 import { themedStyleSheet, useTheme, type Theme } from "@zijinhua/app-sdk/ui";
 import { AGENT_PROVIDERS } from "./agentProviders";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
-const { readPreference: readShellValue, writePreference: writeShellValue } = getCreationService();
+const { readPreference: readShellValue, writePreference: writeShellValue } = getCreationService("jolly");
 
 export type AgentTrace = {
   id: string;
@@ -30,6 +30,8 @@ export type AgentTrace = {
 };
 
 type Props = {
+  accepted: boolean;
+  targetTitle: string;
   value: string;
   prompt: string;
   status: string;
@@ -140,6 +142,7 @@ function toneColors(tone: Tone, colors: Theme): { text: string; tint: string } {
 }
 
 export const AgentScreen = memo(function AgentScreen({
+  accepted, targetTitle,
   value,
   prompt,
   status,
@@ -301,7 +304,7 @@ export const AgentScreen = memo(function AgentScreen({
   }, [hasSession, stillRunning, traces.length, runningTrace, status, hasError, finalReport]);
 
   const phase: "busy" | "error" | "done" | "idle" = stillRunning ? "busy" : hasError ? "error" : hasSession ? "done" : "idle";
-  const phaseLabel = awaitingConfirmation ? "待收下" : awaitingReply ? "等你回应" : { busy: "制作中", error: "有提示", done: "已收好", idle: "待命" }[phase];
+  const phaseLabel = awaitingConfirmation ? "待收下" : accepted ? "可继续修改" : awaitingReply ? "等你回应" : { busy: "制作中", error: "有提示", done: "已收好", idle: "待命" }[phase];
   const phaseTone =
     phase === "busy"
       ? { dot: colors.accent, text: colors.accentText, tint: colors.accentTint }
@@ -318,7 +321,7 @@ export const AgentScreen = memo(function AgentScreen({
         <View style={styles.headerCopy}>
           <Text style={styles.title}>工坊</Text>
           <Text style={styles.caption} numberOfLines={1}>
-            {companionName} 帮你把心愿做成应用
+            {companionName} · {targetTitle}
           </Text>
         </View>
         <View style={[styles.phase, { backgroundColor: phaseTone.tint }]}>
@@ -340,7 +343,7 @@ export const AgentScreen = memo(function AgentScreen({
             <View style={styles.sessionSeal}><Icon name="edit" size={16} color={colors.accentText} /></View>
             <View style={styles.heroCopy}>
               <Text style={styles.sessionTitle}>{sessionLoading ? "正在接回你的心愿" : "这一份心愿，我们接着做"}</Text>
-              <Text style={styles.caption}>{awaitingConfirmation ? (workshopReady ? "正在体验这次作品，满意后亲自收下。" : "代码已完成，正在等待发布或加载。") : awaitingReply ? "伙伴在等你的回应，回复会留在这次制作里。" : "一次专心做好一件事，不会另开一份制作。"}</Text>
+              <Text style={styles.caption}>{awaitingConfirmation ? (workshopReady ? "正在体验这次作品，满意后亲自收下。" : "代码已完成，正在等待发布或加载。") : awaitingReply ? "伙伴在等你的回应，回复会留在这次制作里。" : "这个应用沿用自己的 session，其他应用可以同时制作。"}</Text>
             </View>
             {!busy && !awaitingConfirmation && !awaitingReply ? (
               <Pressy accessibilityRole="button" disabled={sessionLoading} onPress={onNewSession} style={styles.sessionButton}>
@@ -606,7 +609,7 @@ export const AgentScreen = memo(function AgentScreen({
       <PromptBar
         value={value}
         busy={busy}
-        disabled={sessionLoading || confirmationBusy || Boolean(sessionId && !awaitingReply)}
+        disabled={sessionLoading || confirmationBusy || Boolean(sessionId && !awaitingReply && !accepted)}
         placeholder={awaitingConfirmation ? "先收下这份心愿，再开始下一个" : awaitingReply ? "把你的回应告诉伙伴" : "说说你想做什么小应用"}
         providers={AGENT_PROVIDERS}
         providerId={providerId}

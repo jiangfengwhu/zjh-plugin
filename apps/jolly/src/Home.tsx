@@ -1,18 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackHandler, ScrollView, Text, View } from "react-native";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { BackChip, Icon, Pressy, Screen, ScreenBar, Surface, themedStyleSheet, useTheme } from "@zijinhua/app-sdk/ui";
 import { JollyPortrait } from "./ui";
 import { describeJollyRun, readJollyRun, subscribeJollyRun } from "./run";
 import Workshop from "./Workshop";
+type Workspace = { appId: string; title: string; originalAppId?: string };
+function readWorkspaces(): Workspace[] { try { return JSON.parse(getAppContext().storage.get("workspaces") || "[]"); } catch { return []; } }
 export default function JollyHome() {
   const context = getAppContext(); const { colors } = useTheme();
-  const [workshop, setWorkshop] = useState(() => Boolean(context.storage.get("openWorkshop") || context.storage.get("pendingPrompt")));
-  const [run, setRun] = useState(readJollyRun);
-  useEffect(() => subscribeJollyRun(setRun), []);
+  const [workspaces, setWorkspaces] = useState(readWorkspaces);
+  const [target, setTarget] = useState(() => context.storage.get("workshopTarget") || "");
+  const [workshop, setWorkshop] = useState(false);
+  const selected = useRef(target); selected.current = target;
+  useEffect(() => context.storage.subscribe("workspaces", () => setWorkspaces(readWorkspaces())), []);
   useEffect(() => {
     const accept = () => {
-      if (context.storage.get("openWorkshop")) { context.storage.set("openWorkshop", ""); setWorkshop(true); }
+      if (!context.storage.get("openWorkshop")) return;
+      context.storage.set("openWorkshop", ""); setWorkspaces(readWorkspaces());
+      setTarget(context.storage.get("workshopTarget") || ""); setWorkshop(true);
     };
     accept(); return context.storage.subscribe("openWorkshop", accept);
   }, []);
@@ -22,16 +28,18 @@ export default function JollyHome() {
     return () => subscription.remove();
   }, [workshop]);
   return <View style={{ flex: 1 }}>
-    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}>
-      <Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar>
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.hero}><JollyPortrait size={148} animated borderRadius={40} /><Text style={styles.title}>你好，我是 Jolly</Text><Text style={styles.caption}>陪你发现灵感，把心愿做成小应用。</Text></View>
-          <Pressy accessibilityRole="button" onPress={() => setWorkshop(true)}><Surface tone="raised" radius={24} style={styles.workshop}><Icon name="workshop" size={28} color={colors.accent} /><View style={{ flex: 1, gap: 5 }}><Text style={styles.name}>心愿工坊</Text><Text style={styles.copy}>说说想做什么，我们一起把它做出来</Text></View><Icon name="chevron" size={18} color={colors.ink3} /></Surface></Pressy>
-          {run.wish ? <Pressy accessibilityRole="button" onPress={() => setWorkshop(true)}><Surface radius={20} style={styles.progress}><Text style={styles.name}>{run.phase === "making" ? "正在制作" : run.phase === "ready" ? "这次的作品" : "上一次心愿"}</Text><Text style={styles.copy}>{run.wish}</Text><Text style={styles.caption}>{describeJollyRun(run)}</Text><Text style={{ color: colors.accentText, fontSize: 13 }}>进入工坊查看</Text></Surface></Pressy> : null}
-        </ScrollView>
-      </Screen>
-    </View>
-    <View style={{ flex: 1, display: workshop ? "flex" : "none" }}><Workshop onBack={() => setWorkshop(false)} onShowWorkshop={() => setWorkshop(true)} /></View>
+    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar><ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.hero}><JollyPortrait size={132} animated borderRadius={38} /><Text style={styles.title}>你好，我是 Jolly</Text><Text style={styles.caption}>每个应用都有自己的心愿工坊，可以同时制作。</Text></View>
+      <Pressy accessibilityRole="button" onPress={() => context.navigation.create()}><Surface tone="raised" radius={24} style={styles.workshop}><Icon name="plus" size={25} color={colors.accent} /><View style={{ flex: 1, gap: 5 }}><Text style={styles.name}>创作新应用</Text><Text style={styles.copy}>新的应用，新的 session</Text></View><Icon name="chevron" size={18} color={colors.ink3} /></Surface></Pressy>
+      {workspaces.length ? <Text style={styles.name}>应用工坊</Text> : <Text style={styles.caption}>有一个想法，就从上面开始。已装应用也可以从“我的应用”进入修改。</Text>}
+      {workspaces.map(item => <WorkspaceRow key={item.appId} item={item} onPress={() => { setTarget(item.appId); context.storage.set("workshopTarget", item.appId); setWorkshop(true); }} />)}
+    </ScrollView></Screen></View>
+    {workspaces.map(item => <View key={item.appId} style={{ flex: 1, display: workshop && target === item.appId ? "flex" : "none" }}><Workshop appId={item.appId} originalAppId={item.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (selected.current === item.appId) setWorkshop(true); }} /></View>)}
   </View>;
 }
-const styles = themedStyleSheet(t => ({ screen: { flex: 1, backgroundColor: t.canvas }, header: { padding: 20, gap: 12, flexDirection: "row", alignItems: "center" }, headerTitle: { color: t.ink1, fontSize: 18, fontWeight: "600" }, content: { padding: 24, paddingBottom: 40, gap: 24 }, hero: { alignItems: "center", gap: 16, paddingVertical: 18 }, title: { fontFamily: t.serif, fontSize: 28, color: t.ink1, fontWeight: "700" }, caption: { color: t.ink3, fontSize: 13, lineHeight: 20 }, workshop: { padding: 20, flexDirection: "row", gap: 15, alignItems: "center" }, name: { color: t.ink1, fontSize: 18, fontWeight: "600" }, copy: { color: t.ink2, fontSize: 14, lineHeight: 22 }, progress: { padding: 20, gap: 12 } }));
+function WorkspaceRow({ item, onPress }: { item: Workspace; onPress: () => void }) {
+  const [run, setRun] = useState(() => readJollyRun(item.appId));
+  useEffect(() => subscribeJollyRun(setRun, item.appId), [item.appId]);
+  return <Pressy accessibilityRole="button" onPress={onPress}><Surface radius={20} style={styles.progress}><Text style={styles.name}>{item.title}</Text><Text style={styles.copy}>{run.wish || "说说想做什么"}</Text><Text style={styles.caption}>{run.wish ? describeJollyRun(run) : "还未开始制作"}</Text></Surface></Pressy>;
+}
+const styles = themedStyleSheet(t => ({ screen: { flex: 1, backgroundColor: t.canvas }, header: { padding: 20, gap: 12, flexDirection: "row", alignItems: "center" }, headerTitle: { color: t.ink1, fontSize: 18, fontWeight: "600" }, content: { padding: 24, paddingBottom: 40, gap: 20 }, hero: { alignItems: "center", gap: 14, paddingVertical: 14 }, title: { fontFamily: t.serif, fontSize: 28, color: t.ink1, fontWeight: "700" }, caption: { color: t.ink3, fontSize: 13, lineHeight: 20 }, workshop: { padding: 20, flexDirection: "row", gap: 15, alignItems: "center" }, name: { color: t.ink1, fontSize: 18, fontWeight: "600" }, copy: { color: t.ink2, fontSize: 14, lineHeight: 22 }, progress: { padding: 20, gap: 9 } }));

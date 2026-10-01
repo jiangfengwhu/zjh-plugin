@@ -21,7 +21,7 @@
     "react-native-worklets": "0.13.0"
   },
   "devDependencies": {
-    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/4466924e23640ba6c88adec6000a2febc4b6f0c10fe529d53720b2198e2703d6",
+    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/de1826a6fd12c0173a8d3da9850320542dee036c1c646595d949eaffcbaa3070",
     "@types/react": "19.3.0",
     "typescript": "5.9.3"
   }

@@ -11,9 +11,11 @@
 
 新增应用：npm run init:application -- <id>。页面入口在 apps/<id>/src/index.ts，媒体在 assets/。只使用 SDK 公开 API；纯 JS 依赖声明在对应应用 package.json，并更新根锁文件。不要引用宿主或其他应用源码。
 
-提交全部源码后运行 npm run publish:application -- <id>，发布独立 Hermes 包和媒体。发布检查依赖兼容性、源码提交基线、模块范围及存储结构版本。产物在 dist/applications/<id>/，不提交 Git。
+提交全部源码后运行 npm run publish:application -- <id>，发布独立 Hermes 包和媒体。发布检查依赖兼容性、源码提交基线、模块范围。产物在 dist/applications/<id>/，不提交 Git。
 
 AI Coding 输入为本文件、AGENTS.md、目标应用、SDK 公开类型、SDK platform.json、模板及根锁文件；不需要访问 SDK/Android/server 仓库。
 SDK、宿主和工具由 jiangfengwhu/zjh-dynamic 维护。新增原生能力、共享依赖升级与 SDK 契约变更交给平台维护者。
 
 Jolly 的主页在 apps/jolly/src/Home.tsx，工坊是它内部的页面。应用市场由平台维护；新创作的应用不会自动公开上架。
+
+每个应用在 Jolly 中独立保存 session 与制作进度，不同应用可并行；同一应用收下后继续原 session。模块范围由服务端预留，初始化从服务端读取。收下的版本可以手动分享到市场，分享锁定该版本；基于他人作品创作会分配新应用 ID。

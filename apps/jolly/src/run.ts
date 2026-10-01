@@ -17,8 +17,8 @@ const KEY = "run";
 
 const EMPTY: JollyRun = { phase: "idle", wish: "", status: "", steps: [], at: 0 };
 
-export function readJollyRun(): JollyRun {
-  const raw = readPackageValue(KEY);
+export function readJollyRun(appId?: string): JollyRun {
+  const raw = readPackageValue(appId ? `run:${appId}` : KEY);
   if (!raw) return EMPTY;
   try {
     const parsed = JSON.parse(raw) as Partial<JollyRun>;
@@ -37,9 +37,9 @@ export function readJollyRun(): JollyRun {
   }
 }
 
-export function subscribeJollyRun(listener: (run: JollyRun) => void): () => void {
-  listener(readJollyRun());
-  return subscribePackageValue(KEY, () => listener(readJollyRun()));
+export function subscribeJollyRun(listener: (run: JollyRun) => void, appId?: string): () => void {
+  listener(readJollyRun(appId));
+  return subscribePackageValue(appId ? `run:${appId}` : KEY, () => listener(readJollyRun(appId)));
 }
 
 export function jollyPhaseFromStatus(busy: boolean, status: string): JollyPhase {
@@ -51,7 +51,7 @@ export function jollyPhaseFromStatus(busy: boolean, status: string): JollyPhase 
   return "failed";
 }
 
-export function noteJollyRun(input: { phase: JollyPhase; wish: string; status: string; steps?: string[] }): { prev: JollyRun; next: JollyRun } | undefined {
+export function noteJollyRun(input: { appId?: string; phase: JollyPhase; wish: string; status: string; steps?: string[] }): { prev: JollyRun; next: JollyRun } | undefined {
   const next: JollyRun = {
     phase: input.phase,
     wish: input.wish.trim(),
@@ -59,8 +59,9 @@ export function noteJollyRun(input: { phase: JollyPhase; wish: string; status: s
     steps: (input.steps ?? []).map((item) => item.trim()).filter(Boolean).slice(-4),
     at: Date.now(),
   };
-  const prev = readJollyRun();
+  const prev = readJollyRun(input.appId);
   if (prev.phase === next.phase && prev.wish === next.wish && prev.status === next.status && prev.steps.join("\n") === next.steps.join("\n")) return;
+  if (input.appId) writePackageValue(`run:${input.appId}`, JSON.stringify(next));
   writePackageValue(KEY, JSON.stringify(next));
   console.log("jolly run", next.phase, next.status);
   return { prev, next };
@@ -76,9 +77,9 @@ export function describeJollyRun(run: Pick<JollyRun, "phase" | "wish" | "status"
 }
 
 /** 一次制作只对应一条动态；进度和结果原位更新，失败或中断移除。 */
-export function syncJollyFeedPost(input: { startedAt: number; phase: JollyPhase; wish: string; status: string; steps: string[] }) {
+export function syncJollyFeedPost(input: { appId?: string; startedAt: number; phase: JollyPhase; wish: string; status: string; steps: string[] }) {
   if (!Number.isFinite(input.startedAt) || input.startedAt <= 0 || input.phase === "idle") return;
-  const id = `jolly-workshop-${input.startedAt}`;
+  const id = `jolly-workshop-${input.appId}-${input.startedAt}`;
   if (input.phase === "failed" || input.phase === "stopped") {
     removeFeedPost(id);
     return;

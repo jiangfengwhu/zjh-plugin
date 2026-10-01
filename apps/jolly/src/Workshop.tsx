@@ -3,10 +3,11 @@ import { getAppContext } from "@zijinhua/app-sdk";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
 import { noteJollyRun, syncJollyFeedPost, type JollyPhase } from "./run";
-const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = getCreationService();
-type PendingPackage = Awaited<ReturnType<typeof checkPackageUpdates>>[number];
-export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => void; onShowWorkshop?: () => void } = {}) {
+type PendingPackage = { id: string; kind: "layer" | "application"; bytes: number; sha256: string };
+export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop }: { appId: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
+  const [service] = useState(() => getCreationService(appId, originalAppId));
+  const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = service;
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
   const [prompt, updatePrompt] = useState("");
@@ -18,6 +19,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
   const [updateBusy, setUpdateBusy] = useState(false);
   const [runStartedAt, updateStartedAt] = useState(0);
   const [workshopPhase, updateWorkshopPhase] = useState<JollyPhase>("idle");
+  const [accepted, setAccepted] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [sessionLoading, setSessionLoading] = useState(true);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -39,8 +41,8 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
   function persistProgress() {
     const value = live.current;
     if (!value.wish.trim() || !value.startedAt) return;
-    noteJollyRun({ phase: value.phase, wish: value.wish, status: value.status, steps: value.steps });
-    syncJollyFeedPost({ ...value });
+    noteJollyRun({ appId, phase: value.phase, wish: value.wish, status: value.status, steps: value.steps });
+    syncJollyFeedPost({ ...value, appId });
   }
   function setPrompt(value: string) { live.current.wish = value; updatePrompt(value); persistProgress(); }
   function setRunStartedAt(value: number) { live.current.startedAt = value; updateStartedAt(value); }
@@ -55,10 +57,10 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
   useEffect(() => { void resumeCloud(); }, []);
   useEffect(() => {
     const accept = () => {
-      const prompt = context.storage.get("pendingPrompt");
-      if (prompt) { setRequirement(prompt); context.storage.set("pendingPrompt", ""); }
+      const prompt = context.storage.get(`pendingPrompt.${appId}`);
+      if (prompt) { setRequirement(prompt); context.storage.set(`pendingPrompt.${appId}`, ""); }
     };
-    accept(); return context.storage.subscribe("pendingPrompt", accept);
+    accept(); return context.storage.subscribe(`pendingPrompt.${appId}`, accept);
   }, []);
   async function stop() {
     cloudStop.current = true;
@@ -69,7 +71,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
       if (cloud.runId) {
         try {
           await cancelCloudRun(cloud.runId);
-          setSessionId("");
+          setAwaitingReply(true);
         } catch (error) {
           console.log("evolve stop failed", error instanceof Error ? error.message : error);
         }
@@ -80,14 +82,13 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
 
   function newSession() {
     if (busyRef.current || sessionLoading || confirmingRef.current) return;
-    if (sessionId) {
+    if (sessionId && !accepted) {
       resumedCloud.current = false;
       setSessionLoading(true);
       void resumeCloud();
       return;
     }
-    clearJulesSession();
-    setSessionId("");
+    clearJulesRun();
     setPrompt("");
     setStatus("");
     setTraces([]);
@@ -109,12 +110,12 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
       const delivery = await checkWorkshopDelivery(sessionId);
       if (delivery.delivery !== "loaded") return;
       await confirmWorkshop(sessionId);
-      clearJulesSession();
-      setSessionId("");
+      clearJulesRun();
+      setAccepted(true);
       setAwaitingConfirmation(false);
       setAwaitingReply(false);
       setConfirmationMessage("");
-      setStatus("这份心愿已收好，可以开始新的心愿了");
+      setStatus("这份心愿已收好，可以继续修改这个应用");
     } catch (error) {
       setConfirmationMessage(error instanceof Error ? error.message : "这份心愿暂时没能收好，请稍后再试");
       void refreshUpdates(true);
@@ -136,6 +137,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
         const ready = await refreshUpdates(true, true);
         setStatus(ready.length ? "这次作品可以加载" : "新包暂未就绪，请重新检查");
       } else {
+        if ((workshop.delivery === "blocked" || workshop.delivery === "unpublished")) { setAwaitingReply(true); setAwaitingConfirmation(false); }
         setStatus(workshop.delivery === "blocked" ? "作品交付需要处理" : "代码已完成，等待发布");
       }
       return workshop;
@@ -168,8 +170,10 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
     busyRef.current = true;
     setBusy(true);
     // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。
-    const startedAt = sessionId && runStartedAt > 0 ? runStartedAt : Date.now();
-    const wish = sessionId && prompt.trim() ? prompt : text;
+    const continuing = sessionId && !accepted;
+    const startedAt = continuing && runStartedAt > 0 ? runStartedAt : Date.now();
+    const wish = continuing && prompt.trim() ? prompt : text;
+    setAccepted(false);
     setRunStartedAt(startedAt);
     setPrompt(wish);
     setWorkshopPhase("making");
@@ -191,12 +195,13 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
           setSessionId(runId);
           cloudRun.current = { runId };
           saveJulesRun({ session: runId, prompt: wish, startedAt });
+          if (cloudStop.current && !detached.current) void cancelCloudRun(runId).catch(error => setStatus(String(error)));
         },
         shouldStop: () => cloudStop.current,
       });
       if (outcome === "cancelled") {
         if (detached.current) return;
-        setSessionId("");
+        setAwaitingReply(true);
         setWorkshopPhase("stopped");
         setStatus("已停止");
         setBusy(false);
@@ -220,6 +225,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
       const message = error instanceof Error ? error.message : String(error);
       console.log("evolve failed", message);
       setWorkshopPhase(waiting ? "ready" : "failed");
+      if (!waiting) setAwaitingReply(true);
       setStatus(message);
       setBusy(false);
     } finally {
@@ -246,16 +252,14 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
       if (info) {
         const workshop = await workshopStatus(session);
         if (workshop.merged) {
-          setRunStartedAt(run?.startedAt || info.startedAt);
-          setPrompt(run?.prompt || info.title);
-          setWorkshopPhase("ready");
-          setStatus("这份心愿已收好");
-          clearJulesSession();
-          setSessionId("");
+          setStatus("这份心愿已收好，可以继续修改这个应用");
+          clearJulesRun();
+          setAccepted(true);
           return;
         }
         setAwaitingConfirmation(workshop.completed);
-        setAwaitingReply(workshop.state === "AWAITING_USER_FEEDBACK");
+        setAwaitingReply(workshop.state === "AWAITING_USER_FEEDBACK" || workshop.state === "PAUSED");
+        if (workshop.state === "PAUSED") info.state = "PAUSED";
       }
     } catch (error) {
       console.log("jules resume failed", error instanceof Error ? error.message : error);
@@ -266,8 +270,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
     if (!info || info.state === "FAILED") {
       setRunStartedAt(run?.startedAt || info?.startedAt || 0);
       setWorkshopPhase(info?.state === "FAILED" ? "failed" : "stopped");
-      clearJulesSession();
-      setSessionId("");
+      setAwaitingReply(true);
       busyRef.current = false;
       setBusy(false);
       setStatus(info?.state === "FAILED" ? "Jules 失败" : "上次的生成已经中断");
@@ -298,7 +301,7 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
         }, startedAt);
         if (outcome === "cancelled") {
         if (detached.current) return;
-          setSessionId("");
+          setAwaitingReply(true);
           setWorkshopPhase("stopped");
           setStatus("已停止");
           setBusy(false);
@@ -367,12 +370,13 @@ export default function Workshop({ onBack, onShowWorkshop }: { onBack?: () => vo
 
   async function submit() {
     const text = requirement.trim();
-    if (!text || busyRef.current || sessionLoading || confirmingRef.current || (sessionId && !awaitingReply)) return;
+    if (!text || busyRef.current || sessionLoading || confirmingRef.current || (sessionId && !awaitingReply && !accepted)) return;
     console.log("evolve submit", providerId, text);
     await runCloud(text);
   }
 
   return <AgentScreen
+    accepted={accepted} targetTitle={appId}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}
     awaitingConfirmation={awaitingConfirmation} workshopReady={workshopReady} awaitingReply={awaitingReply}
