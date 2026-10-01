@@ -374,14 +374,14 @@ export const AgentScreen = memo(function AgentScreen({
                 <View style={styles.sessionSeal}><Icon name="check" size={17} color={colors.accentText} /></View>
                 <Text style={styles.reportTitle}>先体验，再收下这份心愿</Text>
               </View>
-              <Text style={styles.acceptanceText}>打开最新作品，看看它是否合你心意。确认收下后，我们会把这次修改合入主线，再陪你做下一个心愿。</Text>
+              <Text style={styles.acceptanceText}>打开最新作品，看看它是否合你心意。确认收下后，我们会保存你选定的版本，再陪你在这个应用分支上继续修改。</Text>
               {confirmationMessage ? <Text accessibilityLiveRegion="polite" style={styles.acceptanceMessage}>{confirmationMessage}</Text> : null}
               <View style={styles.acceptanceActions}>
                 <Pressy accessibilityRole="button" disabled={confirmationBusy} onPress={onLoadWish} style={styles.ghost}>
                   <Text style={styles.ghostText}>加载最新作品</Text>
                 </Pressy>
                 <Pressy accessibilityRole="button" disabled={confirmationBusy || !workshopReady} onPress={onConfirmWish} style={[styles.primary, (confirmationBusy || !workshopReady) && { opacity: 0.6 }]}>
-                  <Text style={styles.primaryText}>{confirmationBusy ? "正在收好…" : "确认收下并合入"}</Text>
+                  <Text style={styles.primaryText}>{confirmationBusy ? "正在收好…" : "确认收下"}</Text>
                 </Pressy>
               </View>
               <Text style={styles.acceptanceHint}>收下时会核对你正在使用的版本，旧作品不能误确认。</Text>

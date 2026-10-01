@@ -273,7 +273,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       info = await inspectJulesSession(session);
       if (info) {
         const workshop = await workshopStatus(session);
-        if (workshop.merged) {
+        if (workshop.collected ?? workshop.merged) {
           setStatus("这份心愿已收好，可以继续修改这个应用");
           clearJulesRun();
           setAccepted(true);
