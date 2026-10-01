@@ -356,6 +356,16 @@ export const AgentScreen = memo(function AgentScreen({
             <Text style={styles.sessionButtonText}>开启新的心愿</Text>
           </Pressy>
         ) : null}
+        {awaitingReply && confirmationMessage ? (
+          <Surface tone="raised" radius={colors.radius.xl} style={styles.acceptance}>
+            <Text style={styles.reportTitle}>作品交付需要处理</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.acceptanceMessage}>{confirmationMessage}</Text>
+            <Text style={styles.acceptanceHint}>可以在下方回复伙伴修复问题；修复发包后重新检查交付。</Text>
+            <Pressy accessibilityRole="button" disabled={sessionLoading || busy} onPress={onNewSession} style={styles.ghost}>
+              <Text style={styles.ghostText}>重新检查交付</Text>
+            </Pressy>
+          </Surface>
+        ) : null}
         {awaitingConfirmation ? (
           <Animated.View entering={FadeInDown.duration(360)}>
             <Surface tone="raised" radius={colors.radius.xl} lifted style={styles.acceptance}>
