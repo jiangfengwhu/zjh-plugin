@@ -48,6 +48,7 @@ type Props = {
   deliveryBusy: boolean;
   deliveryMessage: string;
   onLoadWish: () => void;
+  onPublish: () => void;
   providerId: string;
   onProviderChange: (id: string) => void;
   onChange: (value: string) => void;
@@ -158,6 +159,7 @@ export const AgentScreen = memo(function AgentScreen({
   deliveryBusy,
   deliveryMessage,
   onLoadWish,
+  onPublish,
   providerId,
   onProviderChange,
   onChange,
@@ -372,11 +374,14 @@ export const AgentScreen = memo(function AgentScreen({
                 <View style={styles.sessionSeal}><Icon name="check" size={17} color={colors.accentText} /></View>
                 <Text style={styles.reportTitle}>作品已经做好了</Text>
               </View>
-              <Text style={styles.deliveryPanelText}>可以直接打开体验，在下方继续提出修改，也可以到作品详情决定是否上架。</Text>
+              <Text style={styles.deliveryPanelText}>可以打开体验，在下方继续提出修改，满意后发布到应用市场。</Text>
               {deliveryMessage ? <Text accessibilityLiveRegion="polite" style={styles.deliveryPanelMessage}>{deliveryMessage}</Text> : null}
               <View style={styles.deliveryPanelActions}>
                 <Pressy accessibilityRole="button" disabled={deliveryBusy} onPress={onLoadWish} style={styles.ghost}>
-                  <Text style={styles.ghostText}>{versionLoaded ? "打开作品" : "加载最新作品"}</Text>
+                  <Text style={styles.ghostText}>{versionLoaded ? "打开作品" : "体验作品"}</Text>
+                </Pressy>
+                <Pressy accessibilityRole="button" disabled={deliveryBusy} onPress={onPublish} style={styles.ghost}>
+                  <Text style={styles.ghostText}>发布到市场</Text>
                 </Pressy>
               </View>
               <Text style={styles.deliveryPanelHint}>后续发包不会自动改变市场上的公开版本。</Text>

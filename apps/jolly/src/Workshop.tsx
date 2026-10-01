@@ -3,13 +3,12 @@ import { getAppContext } from "@zijinhua/app-sdk";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
 import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type WorkshopStage } from "./run";
-type PendingPackage = { id: string; kind: "layer" | "application"; bytes: number; sha256: string };
 export default function Workshop({ appId, title, originalAppId, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
   const [accountScope] = useState(() => context.storage.get("__accountScope"));
   const [service] = useState(() => getCreationService(appId, originalAppId));
   const [targetTitle, setTargetTitle] = useState(title === appId ? "新作品" : title);
-  const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, checkPackageUpdates, applyPackageUpdates } = service;
+  const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, applyPackageUpdates, openPublication } = service;
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
   const [prompt, updatePrompt] = useState("");
@@ -62,10 +61,6 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     noteJollyRun({ appId, stage, phase: canContinue ? "ready" : workshopPhase, wish: prompt || prev.wish, status: status || prev.status, steps: prev.steps });
   }, [busy, canContinue, workshopPhase, awaitingReply, showDelivery, deliveryStage, prompt, status, sessionLoading, sessionId]);
 
-  async function refreshUpdates(force = false, strict = false): Promise<PendingPackage[]> {
-    try { return await checkPackageUpdates(); } catch (error) { if (strict) throw error; return []; }
-  }
-  async function applyUpdatesNow() { setUpdateBusy(true); try { await applyPackageUpdates(); } finally { setUpdateBusy(false); } }
   useEffect(() => { void resumeCloud(); }, []);
   useEffect(() => {
     const accept = () => {
@@ -124,8 +119,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
         setVersionLoaded(true);
         setStatus("正在体验这次作品");
       } else if (workshop.delivery === "update") {
-        const ready = await refreshUpdates(true, true);
-        setStatus(ready.length ? "这次作品可以加载" : "新包暂未就绪，请重新检查");
+        setStatus("这次作品可以体验");
       } else {
         if ((workshop.delivery === "blocked" || workshop.delivery === "unpublished")) { setAwaitingReply(true); setShowDelivery(false); }
         setStatus(workshop.delivery === "blocked" ? "作品交付需要处理" : "代码已完成，等待发布");
@@ -140,17 +134,28 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
 
   async function loadWish() {
     if (updateBusy || !sessionId) return;
+    if (typeof openPublication !== "function") { setDeliveryMessage("请先重载到最新平台版本，再体验或发布作品。"); return; }
+    setUpdateBusy(true);
     try {
       const workshop = await checkWorkshopDelivery(sessionId);
       if (workshop.delivery === "loaded") { context.navigation.open(appId); return; }
       if (workshop.delivery === "update") {
-        const ready = await refreshUpdates(true, true);
-        if (ready.length) await applyUpdatesNow();
-        else setDeliveryMessage("新包暂未就绪，请重新检查。");
+        setDeliveryMessage("正在下载并打开这次作品…");
+        await applyPackageUpdates();
       }
     } catch (error) {
       setDeliveryMessage(error instanceof Error ? error.message : "新作品暂时没接好，请稍后再试");
-    }
+    } finally { setUpdateBusy(false); }
+  }
+
+  async function publishWish() {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+    try {
+      if (typeof openPublication !== "function") throw new Error("请先重载到最新平台版本，再发布作品。");
+      await openPublication();
+    } catch (error) { setDeliveryMessage(error instanceof Error ? error.message : "暂时无法打开发布页面"); }
+    finally { setUpdateBusy(false); }
   }
 
   function noteError(where: string, detail: string) {
@@ -376,6 +381,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     showDelivery={showDelivery} versionLoaded={versionLoaded} awaitingReply={awaitingReply}
     deliveryBusy={updateBusy} deliveryMessage={deliveryMessage}
     onLoadWish={() => void loadWish()}
+    onPublish={() => void publishWish()}
     providerId={providerId} onProviderChange={setProviderId} onChange={setRequirement}
     onSubmit={() => void submit()} onStop={() => void stop()} onBack={onBack ?? context.navigation.back}
   />;
