@@ -30,3 +30,7 @@
 基于他人作品创作时复制其 src/assets 到平台指定的新应用目录，保留新 appId/moduleBase，application.json 记录 originalAppId，不修改原作。分享由用户在收下后操作，不自行上架。
 
 根 package.json 只声明 SDK 与仓库脚本。应用 package.json 仅保留 name/private 与应用自己的纯 JS 依赖，不维护重复 version；应用版本以 application.json 为准。
+
+## 版本流转边界
+
+SDK 1.1.2 的 publish:application 只上传候选，不更新已收下或公开指针。候选基线受鉴权保护，发布工具自动使用 BUNDLE_CATALOG_TOKEN 读取；不要去掉身份头或改读公开版本绕过候选基线。用户在工坊收下后才更新 accepted，主动分享才更新 public。内置应用也遵守这个边界。不得调用官方 release 接口、写稳定指针或请求 OFFICIAL_PUBLISH_TOKEN；该凭证只留在本地维护者侧。候选发包成功应说明“候选已发布，等待体验与收下”。
