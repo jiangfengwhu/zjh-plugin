@@ -9,7 +9,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   const [accountScope] = useState(() => context.storage.get("__accountScope"));
   const [service] = useState(() => getCreationService(appId, originalAppId));
   const [targetTitle, setTargetTitle] = useState(title === appId ? "新作品" : title);
-  const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = service;
+  const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, checkPackageUpdates, applyPackageUpdates } = service;
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
   const [prompt, updatePrompt] = useState("");
@@ -21,16 +21,14 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   const [updateBusy, setUpdateBusy] = useState(false);
   const [runStartedAt, updateStartedAt] = useState(0);
   const [workshopPhase, updateWorkshopPhase] = useState<JollyPhase>("idle");
-  const [accepted, setAccepted] = useState(false);
+  const [canContinue, setCanContinue] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [workshopReady, setWorkshopReady] = useState(false);
+  const [showDelivery, setShowDelivery] = useState(false);
+  const [versionLoaded, setVersionLoaded] = useState(false);
   const [awaitingReply, setAwaitingReply] = useState(false);
-  const [confirmationBusy, setConfirmationBusy] = useState(false);
-  const [confirmationMessage, setConfirmationMessage] = useState("");
+  const [deliveryMessage, setDeliveryMessage] = useState("");
   const [deliveryStage, setDeliveryStage] = useState<WorkshopStage>("draft");
-  const confirmingRef = useRef(false);
   const cloudStop = useRef(false);
   const stopRequested = useRef(false);
   const cloudRun = useRef<{ runId?: string } | null>(null);
@@ -59,10 +57,10 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
     if (sessionLoading) return;
     const prev = readJollyRun(appId);
-    const stage: WorkshopStage = busy ? "making" : accepted ? "accepted" : workshopPhase === "failed" ? "failed" : workshopPhase === "stopped" ? "paused" : awaitingReply ? deliveryStage === "blocked" ? "blocked" : "reply" : awaitingConfirmation ? deliveryStage : "draft";
+    const stage: WorkshopStage = busy ? "making" : workshopPhase === "failed" ? "failed" : workshopPhase === "stopped" ? "paused" : awaitingReply ? deliveryStage === "blocked" ? "blocked" : "reply" : showDelivery ? deliveryStage : canContinue ? "ready" : "draft";
     if (stage === "draft" && sessionId) return;
-    noteJollyRun({ appId, stage, phase: accepted ? "ready" : workshopPhase, wish: prompt || prev.wish, status: status || prev.status, steps: prev.steps });
-  }, [busy, accepted, workshopPhase, awaitingReply, awaitingConfirmation, deliveryStage, prompt, status, sessionLoading, sessionId]);
+    noteJollyRun({ appId, stage, phase: canContinue ? "ready" : workshopPhase, wish: prompt || prev.wish, status: status || prev.status, steps: prev.steps });
+  }, [busy, canContinue, workshopPhase, awaitingReply, showDelivery, deliveryStage, prompt, status, sessionLoading, sessionId]);
 
   async function refreshUpdates(force = false, strict = false): Promise<PendingPackage[]> {
     try { return await checkPackageUpdates(); } catch (error) { if (strict) throw error; return []; }
@@ -94,8 +92,8 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   }
 
   function newSession() {
-    if (busyRef.current || sessionLoading || confirmingRef.current) return;
-    if (sessionId && !accepted) {
+    if (busyRef.current || sessionLoading || updateBusy) return;
+    if (sessionId && !canContinue) {
       resumedCloud.current = false;
       setSessionLoading(true);
       void resumeCloud();
@@ -108,72 +106,50 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     setReport("");
     setRunStartedAt(0);
     setWorkshopPhase("idle");
-    setAwaitingConfirmation(false);
-    setWorkshopReady(false);
+    setShowDelivery(false);
+    setVersionLoaded(false);
     setAwaitingReply(false);
-    setConfirmationMessage("");
-  }
-
-  async function confirmWish() {
-    if (!sessionId || !awaitingConfirmation || !workshopReady || busyRef.current || confirmingRef.current) return;
-    confirmingRef.current = true;
-    setConfirmationBusy(true);
-    setConfirmationMessage("正在为这份心愿落款…");
-    try {
-      const delivery = await checkWorkshopDelivery(sessionId);
-      if (delivery.delivery !== "loaded") return;
-      await confirmWorkshop(sessionId);
-      clearJulesRun();
-      setAccepted(true);
-      setAwaitingConfirmation(false);
-      setAwaitingReply(false);
-      setConfirmationMessage("");
-      setStatus("这份心愿已收好，可以继续修改这个应用");
-    } catch (error) {
-      setConfirmationMessage(error instanceof Error ? error.message : "这份心愿暂时没能收好，请稍后再试");
-      void refreshUpdates(true);
-    } finally {
-      confirmingRef.current = false;
-      setConfirmationBusy(false);
-    }
+    setDeliveryMessage("");
   }
 
   async function checkWorkshopDelivery(session: string) {
-    setWorkshopReady(false);
+    setVersionLoaded(false);
     try {
       const workshop = await workshopStatus(session);
+      setCanContinue(workshop.completed);
       if (workshop.application?.title && workshop.application.title !== appId) setTargetTitle(workshop.application.title);
-      setDeliveryStage(workshop.delivery === "loaded" ? "accept" : workshop.delivery === "update" ? "load" : "blocked");
-      setConfirmationMessage(workshop.message || "暂时无法核对作品发布状态，请稍后重试。");
+      setDeliveryStage(workshop.delivery === "loaded" ? "ready" : workshop.delivery === "update" ? "load" : "blocked");
+      setDeliveryMessage(workshop.message || "暂时无法核对作品发布状态，请稍后重试。");
       if (workshop.delivery === "loaded") {
-        setWorkshopReady(true);
+        setVersionLoaded(true);
         setStatus("正在体验这次作品");
       } else if (workshop.delivery === "update") {
         const ready = await refreshUpdates(true, true);
         setStatus(ready.length ? "这次作品可以加载" : "新包暂未就绪，请重新检查");
       } else {
-        if ((workshop.delivery === "blocked" || workshop.delivery === "unpublished")) { setAwaitingReply(true); setAwaitingConfirmation(false); }
+        if ((workshop.delivery === "blocked" || workshop.delivery === "unpublished")) { setAwaitingReply(true); setShowDelivery(false); }
         setStatus(workshop.delivery === "blocked" ? "作品交付需要处理" : "代码已完成，等待发布");
       }
       return workshop;
     } catch (error) {
-      setConfirmationMessage(error instanceof Error ? error.message : "作品更新检查失败，请稍后重试");
+      setDeliveryMessage(error instanceof Error ? error.message : "作品更新检查失败，请稍后重试");
       setStatus("作品更新检查失败");
       throw error;
     }
   }
 
   async function loadWish() {
-    if (updateBusy || confirmingRef.current || !sessionId) return;
+    if (updateBusy || !sessionId) return;
     try {
       const workshop = await checkWorkshopDelivery(sessionId);
+      if (workshop.delivery === "loaded") { context.navigation.open(appId); return; }
       if (workshop.delivery === "update") {
         const ready = await refreshUpdates(true, true);
         if (ready.length) await applyUpdatesNow();
-        else setConfirmationMessage("新包暂未就绪，请重新检查；确认前会再次核对运行版本。");
+        else setDeliveryMessage("新包暂未就绪，请重新检查。");
       }
     } catch (error) {
-      setConfirmationMessage(error instanceof Error ? error.message : "新作品暂时没接好，请稍后再试");
+      setDeliveryMessage(error instanceof Error ? error.message : "新作品暂时没接好，请稍后再试");
     }
   }
 
@@ -185,10 +161,11 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     busyRef.current = true;
     setBusy(true);
     // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。
-    const continuing = sessionId && !accepted;
+    const continuing = sessionId && !canContinue;
     const startedAt = continuing && runStartedAt > 0 ? runStartedAt : Date.now();
     const wish = continuing && prompt.trim() ? prompt : text;
-    setAccepted(false);
+    setCanContinue(false);
+    setShowDelivery(false);
     setDeliveryStage("making");
     if (title === "新应用" || title === "未命名作品") {
       const workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
@@ -199,7 +176,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     setPrompt(wish);
     setWorkshopPhase("making");
     setAwaitingReply(false);
-    setConfirmationMessage("");
+    setDeliveryMessage("");
     setTraces([]);
     setReport("");
     onShowWorkshop?.();
@@ -235,7 +212,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
         return;
       }
       waiting = true;
-      setAwaitingConfirmation(true);
+      setShowDelivery(true);
       setWorkshopPhase("ready");
       await workshopStatus(cloudRun.current?.runId || await loadJulesSession());
       
@@ -273,13 +250,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       info = await inspectJulesSession(session);
       if (info) {
         const workshop = await workshopStatus(session);
-        if (workshop.collected ?? workshop.merged) {
-          setStatus("这份心愿已收好，可以继续修改这个应用");
-          clearJulesRun();
-          setAccepted(true);
-          return;
-        }
-        setAwaitingConfirmation(workshop.completed);
+        setShowDelivery(workshop.completed);
         setAwaitingReply(workshop.state === "AWAITING_USER_FEEDBACK" || workshop.state === "PAUSED");
         if (workshop.state === "PAUSED") info.state = "PAUSED";
       }
@@ -336,7 +307,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
           return;
         }
         waiting = true;
-        setAwaitingConfirmation(true);
+        setShowDelivery(true);
         setWorkshopPhase("ready");
         await workshopStatus(session);
         setStatus("正在检查新包");
@@ -371,7 +342,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       } catch (error) {
         console.log("jules resume check failed", error instanceof Error ? error.message : error);
       }
-      // 保留这次心愿，重载新包后仍要由用户确认收下。
+      // 保留这轮制作记录，后续可以直接继续迭代。
       return;
     }
     if (info.state === "PAUSED") {
@@ -393,18 +364,18 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
 
   async function submit() {
     const text = requirement.trim();
-    if (!text || busyRef.current || sessionLoading || confirmingRef.current || (sessionId && !awaitingReply && !accepted)) return;
+    if (!text || busyRef.current || sessionLoading || updateBusy || (sessionId && !awaitingReply && !canContinue)) return;
     console.log("evolve submit", providerId, text);
     await runCloud(text);
   }
 
   return <AgentScreen
-    accepted={accepted} targetTitle={targetTitle}
+    canContinue={canContinue} targetTitle={targetTitle}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}
-    awaitingConfirmation={awaitingConfirmation} workshopReady={workshopReady} awaitingReply={awaitingReply}
-    confirmationBusy={confirmationBusy} confirmationMessage={confirmationMessage}
-    onConfirmWish={() => void confirmWish()} onLoadWish={() => void loadWish()}
+    showDelivery={showDelivery} versionLoaded={versionLoaded} awaitingReply={awaitingReply}
+    deliveryBusy={updateBusy} deliveryMessage={deliveryMessage}
+    onLoadWish={() => void loadWish()}
     providerId={providerId} onProviderChange={setProviderId} onChange={setRequirement}
     onSubmit={() => void submit()} onStop={() => void stop()} onBack={onBack ?? context.navigation.back}
   />;

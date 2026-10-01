@@ -5,8 +5,8 @@ const upsertFeedPost = getAppContext().feed.upsert;
 
 export type JollyPhase = "idle" | "making" | "ready" | "stopped" | "failed";
 
-export type WorkshopStage = "draft" | "making" | "reply" | "load" | "accept" | "accepted" | "paused" | "failed" | "blocked";
-export const workshopStageLabels: Record<WorkshopStage, string> = { draft: "尚未开始", making: "制作中", reply: "等待回复", load: "待体验", accept: "待收下", accepted: "已收下", paused: "已暂停", failed: "制作未完成", blocked: "需要处理" };
+export type WorkshopStage = "draft" | "making" | "reply" | "load" | "ready" | "paused" | "failed" | "blocked";
+export const workshopStageLabels: Record<WorkshopStage, string> = { draft: "尚未开始", making: "制作中", reply: "等待回复", load: "待体验", ready: "可使用", paused: "已暂停", failed: "制作未完成", blocked: "需要处理" };
 export type JollyRun = {
   stage?: WorkshopStage;
   phase: JollyPhase;
