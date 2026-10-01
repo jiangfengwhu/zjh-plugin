@@ -8,6 +8,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   const context = getAppContext();
   const [accountScope] = useState(() => context.storage.get("__accountScope"));
   const [service] = useState(() => getCreationService(appId, originalAppId));
+  const [targetTitle, setTargetTitle] = useState(title === appId ? "新作品" : title);
   const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, confirmWorkshop, checkPackageUpdates, applyPackageUpdates } = service;
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
@@ -141,6 +142,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     setWorkshopReady(false);
     try {
       const workshop = await workshopStatus(session);
+      if (workshop.application?.title && workshop.application.title !== appId) setTargetTitle(workshop.application.title);
       setDeliveryStage(workshop.delivery === "loaded" ? "accept" : workshop.delivery === "update" ? "load" : "blocked");
       setConfirmationMessage(workshop.message || "暂时无法核对作品发布状态，请稍后重试。");
       if (workshop.delivery === "loaded") {
@@ -397,7 +399,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   }
 
   return <AgentScreen
-    accepted={accepted} targetTitle={title === appId ? "未命名作品" : title}
+    accepted={accepted} targetTitle={targetTitle}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}
     awaitingConfirmation={awaitingConfirmation} workshopReady={workshopReady} awaitingReply={awaitingReply}
