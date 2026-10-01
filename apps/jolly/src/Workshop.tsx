@@ -29,6 +29,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
   const [confirmationMessage, setConfirmationMessage] = useState("");
   const confirmingRef = useRef(false);
   const cloudStop = useRef(false);
+  const stopRequested = useRef(false);
   const cloudRun = useRef<{ runId?: string } | null>(null);
   const busyRef = useRef(false);
   const resumedCloud = useRef(false);
@@ -63,20 +64,19 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
     accept(); return context.storage.subscribe(`pendingPrompt.${appId}`, accept);
   }, []);
   async function stop() {
-    cloudStop.current = true;
     const cloud = cloudRun.current;
-    if (cloud) {
-      setStatus("正在停止");
-      console.log("evolve stop", cloud.runId ?? "pending");
-      if (cloud.runId) {
-        try {
-          await cancelCloudRun(cloud.runId);
-          setAwaitingReply(true);
-        } catch (error) {
-          console.log("evolve stop failed", error instanceof Error ? error.message : error);
-        }
-      }
-      return;
+    if (!cloud) return;
+    stopRequested.current = true;
+    setStatus("正在请求停止");
+    if (!cloud.runId) return;
+    try {
+      await cancelCloudRun(cloud.runId);
+      cloudStop.current = true;
+      setAwaitingReply(true);
+      setStatus("已发送停止请求");
+    } catch (error) {
+      stopRequested.current = false;
+      setStatus(error instanceof Error ? error.message : "停止请求未成功，请重试");
     }
   }
 
@@ -184,6 +184,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
     onShowWorkshop?.();
     setStatus(status);
     cloudStop.current = false;
+    stopRequested.current = false;
     cloudRun.current = {};
     let waiting = false;
     try {
@@ -195,7 +196,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
           setSessionId(runId);
           cloudRun.current = { runId };
           saveJulesRun({ session: runId, prompt: wish, startedAt });
-          if (cloudStop.current && !detached.current) void cancelCloudRun(runId).catch(error => setStatus(String(error)));
+          if (stopRequested.current && !detached.current) void stop();
         },
         shouldStop: () => cloudStop.current,
       });
@@ -203,7 +204,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
         if (detached.current) return;
         setAwaitingReply(true);
         setWorkshopPhase("stopped");
-        setStatus("已停止");
+        setStatus("已发送停止请求");
         setBusy(false);
         return;
       }
@@ -291,6 +292,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
       setStatus("正在接上");
       setTraces([{ id: "jules", kind: "status", title: "正在接上", state: "running", detail: info.url }]);
       cloudStop.current = false;
+    stopRequested.current = false;
       cloudRun.current = { runId: session };
       let waiting = false;
       try {
@@ -303,7 +305,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
         if (detached.current) return;
           setAwaitingReply(true);
           setWorkshopPhase("stopped");
-          setStatus("已停止");
+          setStatus("已发送停止请求");
           setBusy(false);
           return;
         }
@@ -359,7 +361,7 @@ export default function Workshop({ appId, originalAppId, onBack, onShowWorkshop 
       showAgent();
       busyRef.current = false;
       setBusy(false);
-      setStatus("Jules 已暂停");
+      setStatus("制作已暂停，可以继续这个应用");
       console.log("jules resume paused", session);
     }
   }
