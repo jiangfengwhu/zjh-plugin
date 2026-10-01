@@ -330,7 +330,7 @@ export const AgentScreen = memo(function AgentScreen({
         </View>
       </ScreenBar>
 
-      <ScrollView
+      <ScrollView removeClippedSubviews={false}
         style={styles.fill}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -367,7 +367,7 @@ export const AgentScreen = memo(function AgentScreen({
           </Surface>
         ) : null}
         {showDelivery ? (
-          <Animated.View entering={FadeInDown.duration(360)}>
+          <Animated.View>
             <Surface tone="raised" radius={colors.radius.xl} lifted style={styles.deliveryPanel}>
               <GiltLine style={styles.reportEdge} />
               <View style={styles.reportHead}>
@@ -404,7 +404,7 @@ export const AgentScreen = memo(function AgentScreen({
             </View>
           </View>
         ) : (
-          <Animated.View entering={FadeIn.duration(600)} style={styles.stage}>
+          <Animated.View style={styles.stage}>
             <View style={styles.portraitLarge}>
               <JollyVideoPlayer state={jollyLiveState} width={124} height={124} borderRadius={38} resizeMode="cover" />
             </View>
@@ -418,7 +418,7 @@ export const AgentScreen = memo(function AgentScreen({
         )}
 
         {prompt ? (
-          <Animated.View entering={FadeInDown.duration(380)} layout={LinearTransition.duration(240)}>
+          <Animated.View>
             <Surface style={styles.wish}>
               <View style={styles.wishHead}>
                 <Text style={styles.wishLabel}>心愿</Text>
@@ -434,7 +434,7 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
 
         {hasSession ? (
-          <Animated.View entering={FadeInDown.duration(380).delay(60)} layout={LinearTransition.duration(240)}>
+          <Animated.View>
             <Surface tone="raised" style={styles.progress}>
               <Pressable
                 accessibilityRole="button"
@@ -461,8 +461,6 @@ export const AgentScreen = memo(function AgentScreen({
                 <View style={styles.tickerWindow}>
                   <Animated.View
                     key={currentTicker.key}
-                    entering={FadeInDown.duration(240)}
-                    exiting={FadeOutUp.duration(160)}
                     style={styles.tickerSlide}
                   >
                     <Text style={styles.tickerBadge}>{currentTicker.badge}</Text>
@@ -483,7 +481,7 @@ export const AgentScreen = memo(function AgentScreen({
               </Pressable>
 
               {traceExpanded && actionTraces.length > 0 ? (
-                <Animated.View entering={FadeIn.duration(220)} style={styles.steps}>
+                <Animated.View style={styles.steps}>
                   <Text style={styles.stepsHead}>共 {actionTraces.length} 步，点一步看输出</Text>
                   {actionTraces.map((item, idx) => {
                     const cleanedDetail = cleanTraceDetail(item.detail);
@@ -519,7 +517,7 @@ export const AgentScreen = memo(function AgentScreen({
                           </View>
                         </Pressable>
                         {rowOpen && hasDetail ? (
-                          <Animated.View entering={FadeIn.duration(200)} style={styles.detail}>
+                          <Animated.View style={styles.detail}>
                             <Text style={styles.detailText}>
                               {cleanedDetail.slice(0, 800)}
                               {cleanedDetail.length > 800 ? "\n… 已截断" : ""}
@@ -536,7 +534,7 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
 
         {hasSession && finalReport ? (
-          <Animated.View entering={FadeInDown.duration(460).delay(80)} layout={LinearTransition.duration(240)}>
+          <Animated.View>
             <Surface tone="raised" radius={colors.radius.xl} lifted style={styles.report}>
               <GiltLine style={styles.reportEdge} />
               <View style={styles.reportHead}>
@@ -563,7 +561,7 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
 
         {!hasSession ? (
-          <Animated.View entering={FadeIn.duration(600).delay(160)} style={styles.ideas}>
+          <Animated.View style={styles.ideas}>
             <SectionTitle>试试这些</SectionTitle>
             {IDEAS.map((idea) => {
               const selected = value.trim() === idea.prompt.trim();
@@ -605,7 +603,7 @@ export const AgentScreen = memo(function AgentScreen({
                     </View>
                   </View>
                   {showLastSnapshot ? (
-                    <Animated.Text entering={FadeIn.duration(200)} style={styles.lastText}>
+                    <Animated.Text style={styles.lastText}>
                       {cleanTraceDetail(report)}
                     </Animated.Text>
                   ) : null}
