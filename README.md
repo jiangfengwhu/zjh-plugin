@@ -19,3 +19,5 @@ SDK、宿主和工具由 jiangfengwhu/zjh-dynamic 维护。新增原生能力、
 Jolly 的主页在 apps/jolly/src/Home.tsx，工坊是它内部的页面。应用市场由平台维护；新创作的应用不会自动公开上架。
 
 每个应用在 Jolly 中独立保存 session 与制作进度，不同应用可并行；同一应用收下后继续原 session。模块范围由服务端预留，初始化从服务端读取。收下的版本可以手动分享到市场，分享锁定该版本；基于他人作品创作会分配新应用 ID。
+
+根 package.json 仅声明 SDK，React、RN、公开第三方 RN 库、React 类型和 TypeScript 的精确版本统一由 SDK 管理。各应用 package.json 声明 workspace 身份和自己的纯 JS 依赖，不重复声明平台依赖，也不保留重复应用版本。构建会校验实际解析版本并拒绝共享依赖覆盖。

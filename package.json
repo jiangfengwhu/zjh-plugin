@@ -9,20 +9,7 @@
     "build:application": "zjh-app build",
     "publish:application": "zjh-app publish"
   },
-  "dependencies": {
-    "react": "19.2.3",
-    "react-native": "0.87.1",
-    "react-native-svg": "15.15.5",
-    "react-native-markdown-display": "7.0.2",
-    "react-native-reanimated": "4.7.0",
-    "react-native-linear-gradient": "2.8.3",
-    "react-native-safe-area-context": "5.10.0",
-    "react-native-video": "6.19.3",
-    "react-native-worklets": "0.13.0"
-  },
   "devDependencies": {
-    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/de1826a6fd12c0173a8d3da9850320542dee036c1c646595d949eaffcbaa3070",
-    "@types/react": "19.3.0",
-    "typescript": "5.9.3"
+    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/5c378e9d6398ff41a14f57a3fe0fc3af281e9908864f67d172853c1f7b623ed4"
   }
 }
