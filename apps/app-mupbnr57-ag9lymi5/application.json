@@ -1,10 +1,10 @@
 {
-  "title": "app-mupbnr57-ag9lymi5",
-  "summary": "",
-  "mark": "a",
+  "title": "随身心晴手账",
+  "summary": "按日期记录心动瞬间、待办愿望与随笔，支持本地保存和一键清空。",
+  "mark": "晴",
   "accent": "#7A5BD0",
   "appId": "app-mupbnr57-ag9lymi5",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "dataSchemaVersion": 1,
   "moduleBase": 2300000
 }
