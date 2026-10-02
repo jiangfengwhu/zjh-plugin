@@ -12,6 +12,8 @@
 
 只导入 @zijinhua/app-sdk、/ui、/creation 与 platform.json 公开共享入口。制作服务仅授权 Jolly。存储、动态、导航、手机能力和资源通过 getAppContext() 获取，不导入宿主或其他应用源码，不虚构 API、硬编码或输出凭证。共享原生依赖由 SDK 精确安装；额外纯 JS 库声明在应用 package.json，更新根锁文件。新的原生能力交维护者协调。应用 package.json 只保留 name/private 与自己的纯 JS 依赖，版本在 application.json 维护。
 
+AI 功能统一使用 getAppContext().ai：listProviders() 读取非敏感模型信息，complete({messages, providerId?, temperature?, maxTokens?}) 使用用户在宿主我的页面配置的模型，openSettings() 只在用户点击配置入口时打开设置。默认模型无需传 providerId。不要新增 API Key 输入页、保存平台模型凭证、调用宿主私有 AI 接口或自行读取密钥。展示请求 loading，保留原输入，处理返回的 ok/code/error；未配置时提供配置入口或非 AI 路径，不自动重试和重复消耗额度。首版为非流式文本，离开页面后忽略过期响应。完整类型与示例查看安装 SDK 的 README.md，所需宿主 API 1.3.0。
+
 ## 分支与发布
 
 1. npm ci 安装当前分支锁定的 SDK。使用 SDK 1.2.0 或更新版本；已有分支如工具过旧，按平台提示升级 SDK，无需同步 main。默认不单独执行类型检查、测试或预览，打包所需构建与运行时兼容检查继续执行。

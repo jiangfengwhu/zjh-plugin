@@ -10,6 +10,6 @@
     "publish:application": "zjh-app publish"
   },
   "devDependencies": {
-    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/81a6d2ba83a57f6e50ec470631a3ee9b086cbc4d29d83fb691f88e745f8818be"
+    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/efa1c3c13d5bc554e273aa139616ce08ba3b2d3940f354f15728d8cfb50c51e9"
   }
 }
