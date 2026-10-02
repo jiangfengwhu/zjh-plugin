@@ -332,6 +332,7 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
     } finally {
       setSessionLoading(false);
     }
+    if (!visibleRef.current || detached.current) return;
     if (!info || info.state === "FAILED") {
       setRunStartedAt(run?.startedAt || info?.startedAt || 0);
       setWorkshopPhase(info?.state === "FAILED" ? "failed" : "stopped");
