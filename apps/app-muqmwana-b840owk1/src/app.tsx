@@ -1,20 +1,45 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, ScrollView } from "react-native";
-import { format, addDays, subDays } from "date-fns";
+import { View, Text, TextInput, ScrollView, TouchableOpacity } from "react-native";
+import { format, addDays, subDays, parseISO } from "date-fns";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { BackChip, useTheme, Screen, ScreenBar, Surface, SectionTitle, Pressy, Icon } from "@zijinhua/app-sdk/ui";
 
-export default function App() {
+function updateIndex(ctx: ReturnType<typeof getAppContext>, dateStr: string, add: boolean) {
+  let index: string[] = [];
+  const indexData = ctx.storage.get("diary_index");
+  if (indexData) {
+    try {
+      index = JSON.parse(indexData);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (add) {
+    if (!index.includes(dateStr)) {
+      index.push(dateStr);
+      index.sort((a, b) => b.localeCompare(a));
+      ctx.storage.set("diary_index", JSON.stringify(index));
+    }
+  } else {
+    const newIndex = index.filter(d => d !== dateStr);
+    if (newIndex.length !== index.length) {
+      ctx.storage.set("diary_index", JSON.stringify(newIndex));
+    }
+  }
+}
+
+function DetailView({ date, onBack, onChangeDate }: { date: Date, onBack: () => void, onChangeDate: (d: Date) => void }) {
   const ctx = getAppContext();
   const { colors } = useTheme();
 
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [heartbeats, setHeartbeats] = useState("");
   const [wishes, setWishes] = useState("");
   const [thoughts, setThoughts] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
-  const dateKey = `diary_${format(currentDate, "yyyy-MM-dd")}`;
+  const dateStr = format(date, "yyyy-MM-dd");
+  const dateKey = `diary_${dateStr}`;
 
   useEffect(() => {
     const data = ctx.storage.get(dateKey);
@@ -24,7 +49,6 @@ export default function App() {
         setHeartbeats(parsed.heartbeats || "");
         setWishes(parsed.wishes || "");
         setThoughts(parsed.thoughts || "");
-        // If there's any data, start in view mode, else in edit mode
         setIsEditing(!(parsed.heartbeats || parsed.wishes || parsed.thoughts));
       } catch (e) {
         setHeartbeats("");
@@ -42,6 +66,7 @@ export default function App() {
 
   const handleSave = () => {
     ctx.storage.set(dateKey, JSON.stringify({ heartbeats, wishes, thoughts }));
+    updateIndex(ctx, dateStr, true);
     ctx.toast.show("保存成功", "success");
     setIsEditing(false);
   };
@@ -51,12 +76,10 @@ export default function App() {
     setWishes("");
     setThoughts("");
     ctx.storage.remove(dateKey);
+    updateIndex(ctx, dateStr, false);
     ctx.toast.show("已清空", "success");
     setIsEditing(true);
   };
-
-  const handlePrevDay = () => setCurrentDate(subDays(currentDate, 1));
-  const handleNextDay = () => setCurrentDate(addDays(currentDate, 1));
 
   const inputStyle = {
     color: colors.text,
@@ -83,15 +106,15 @@ export default function App() {
   return (
     <Screen style={{ backgroundColor: colors.canvas }}>
       <ScreenBar style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 }}>
-        <BackChip onPress={ctx.navigation.back} />
+        <BackChip onPress={onBack} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          <Pressy onPress={handlePrevDay} style={{ padding: 4 }}>
+          <Pressy onPress={() => onChangeDate(subDays(date, 1))} style={{ padding: 4 }}>
             <Icon name="chevron" color={colors.text} size={24} />
           </Pressy>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "bold" }}>
-            {format(currentDate, "yyyy-MM-dd")}
+            {dateStr}
           </Text>
-          <Pressy onPress={handleNextDay} style={{ padding: 4 }}>
+          <Pressy onPress={() => onChangeDate(addDays(date, 1))} style={{ padding: 4 }}>
             <Icon name="chevron" color={colors.text} size={24} style={{ transform: [{ rotate: "180deg" }] }} />
           </Pressy>
         </View>
@@ -176,4 +199,62 @@ export default function App() {
       </ScrollView>
     </Screen>
   );
+}
+
+function ListView({ onSelectDate }: { onSelectDate: (d: Date) => void }) {
+  const ctx = getAppContext();
+  const { colors } = useTheme();
+  const [index, setIndex] = useState<string[]>([]);
+
+  useEffect(() => {
+    const indexData = ctx.storage.get("diary_index");
+    if (indexData) {
+      try {
+        setIndex(JSON.parse(indexData));
+      } catch (e) {
+        setIndex([]);
+      }
+    } else {
+      setIndex([]);
+    }
+  }, [ctx.storage]);
+
+  return (
+    <Screen style={{ backgroundColor: colors.canvas }}>
+      <ScreenBar style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 }}>
+        <BackChip onPress={ctx.navigation.back} />
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "bold" }}>心晴手账</Text>
+        <Pressy onPress={() => onSelectDate(new Date())} style={{ padding: 8 }}>
+          <Icon name="plus" color={colors.text} size={24} />
+        </Pressy>
+      </ScreenBar>
+
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        {index.length === 0 ? (
+          <View style={{ alignItems: "center", marginTop: 40 }}>
+            <Text style={{ color: colors.muted, fontSize: 16 }}>暂无日记，点击右上角开始记录吧</Text>
+          </View>
+        ) : (
+          index.map(dateStr => (
+            <Pressy key={dateStr} onPress={() => onSelectDate(parseISO(dateStr))}>
+              <Surface tone="raised" radius={12} style={{ padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "500" }}>{dateStr}</Text>
+                <Icon name="chevron" color={colors.muted} size={20} style={{ transform: [{ rotate: "180deg" }] }} />
+              </Surface>
+            </Pressy>
+          ))
+        )}
+      </ScrollView>
+    </Screen>
+  );
+}
+
+export default function App() {
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  if (currentDate) {
+    return <DetailView date={currentDate} onBack={() => setCurrentDate(null)} onChangeDate={setCurrentDate} />;
+  }
+
+  return <ListView onSelectDate={setCurrentDate} />;
 }
