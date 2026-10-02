@@ -4,6 +4,7 @@ import { getCreationService } from "@zijinhua/app-sdk/creation";
 import type { WorkshopStatus } from "@zijinhua/app-sdk/creation";
 import { AppState } from "react-native";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
+import { RequirementComposer } from "./RequirementComposer";
 import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type WorkshopStage } from "./run";
 export default function Workshop({ appId, title, originalAppId, visible, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; visible: boolean; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
@@ -240,6 +241,7 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
         onStatus: setStatus,
         onTrace: setTraces,
         onRunId: (runId) => {
+          context.storage.remove(`requirementDraft.${appId}`);
           setSessionId(runId);
           cloudRun.current = { runId };
           saveJulesRun({ session: runId, prompt: wish, startedAt });
@@ -439,11 +441,15 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   async function submit() {
     const text = requirement.trim();
     if (!text || busyRef.current || sessionLoading || updateBusy || (sessionId && !awaitingReply && !canContinue)) return;
-    console.log("evolve submit", providerId, text);
+    console.log("evolve submit", providerId);
     await runCloud(text);
   }
 
   return <AgentScreen
+    preparation={!sessionId && !busy ? <RequirementComposer key={`${accountScope}.${appId}`} appId={appId} value={requirement} onChange={setRequirement} disabled={sessionLoading || updateBusy} visible={visible} onStart={text => {
+      if (busyRef.current || sessionLoading || updateBusy || detached.current || context.storage.get("__accountScope") !== accountScope) return;
+      void runCloud(text);
+    }} /> : undefined}
     canContinue={canContinue} targetTitle={targetTitle}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}

@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, {
@@ -64,6 +64,7 @@ type Props = {
   historyError: string;
   onLoadHistory: () => void;
   scrollKey: string;
+  preparation?: ReactNode;
 };
 
 type Idea = {
@@ -175,7 +176,7 @@ export const AgentScreen = memo(function AgentScreen({
   onSubmit,
   onStop,
   onBack,
-  publicReleaseId, candidateReleaseId, history, historyCursor, historyBusy, historyError, onLoadHistory, scrollKey,
+  publicReleaseId, candidateReleaseId, history, historyCursor, historyBusy, historyError, onLoadHistory, scrollKey, preparation,
 }: Props) {
   const { colors } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -589,6 +590,7 @@ export const AgentScreen = memo(function AgentScreen({
           {historyCursor ? <Pressy disabled={historyBusy} onPress={onLoadHistory} style={styles.ghost}><Text style={styles.ghostText}>{historyBusy ? "正在加载…" : "加载更多制作记录"}</Text></Pressy> : null}
         </Surface> : null}
 
+        {preparation}
         {!hasSession ? (
           <Animated.View style={styles.ideas}>
             <SectionTitle>试试这些</SectionTitle>
@@ -643,7 +645,7 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
       </ScrollView>
 
-      <PromptBar
+      {!preparation ? <PromptBar
         value={value}
         busy={busy}
         disabled={sessionLoading || deliveryBusy || Boolean(sessionId && !awaitingReply && !canContinue)}
@@ -654,7 +656,7 @@ export const AgentScreen = memo(function AgentScreen({
         onChange={onChange}
         onSend={() => onSubmit()}
         onStop={onStop}
-      />
+      /> : null}
 
       <Modal visible={nameModalVisible} transparent animationType="fade" onRequestClose={() => setNameModalVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setNameModalVisible(false)}>
