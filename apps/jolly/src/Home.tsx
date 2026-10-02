@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BackHandler, ScrollView, Text, View } from "react-native";
+import { BackHandler, FlatList, Text, View } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { BackChip, Icon, Pressy, Screen, ScreenBar, Surface, themedStyleSheet, useTheme } from "@zijinhua/app-sdk/ui";
@@ -7,13 +7,18 @@ import { JollyPortrait } from "./ui";
 import { workshopStageLabels, readJollyRun, subscribeJollyRun } from "./run";
 import Workshop from "./Workshop";
 type Workspace = { appId: string; title: string; originalAppId?: string };
-function readWorkspaces(): Workspace[] { try { return JSON.parse(getAppContext().storage.get("workspaces") || "[]"); } catch { return []; } }
+function readWorkspaces(): Workspace[] { try { const value = JSON.parse(getAppContext().storage.get("workspaces") || "[]"); return Array.isArray(value) ? value.filter(item => item && /^[a-z][a-z0-9-]{0,63}$/.test(item.appId) && typeof item.title === "string") : []; } catch { return []; } }
 export default function JollyHome() {
   const context = getAppContext(); const { colors } = useTheme();
   const focused = useIsFocused();
   const [workspaces, setWorkspaces] = useState(readWorkspaces);
   const [target, setTarget] = useState(() => context.storage.get("workshopTarget") || "");
   const [workshop, setWorkshop] = useState(false);
+  const currentWorkspace = workspaces.find(item => item.appId === target);
+  const [opened, setOpened] = useState(false);
+  const [scope, setScope] = useState(() => context.storage.get("__accountScope"));
+  useEffect(() => { if (workshop) setOpened(true); }, [workshop]);
+  useEffect(() => context.storage.subscribe("__accountScope", () => { setScope(context.storage.get("__accountScope")); setWorkspaces(readWorkspaces()); setTarget(context.storage.get("workshopTarget") || ""); setOpened(false); setWorkshop(false); }), []);
   const selected = useRef(target); selected.current = target;
   useEffect(() => context.storage.subscribe("workspaces", () => { const next = readWorkspaces(); setWorkspaces(next); if (!next.some(item => item.appId === selected.current)) { setWorkshop(false); setTarget(""); } }), []);
   useEffect(() => {
@@ -30,13 +35,12 @@ export default function JollyHome() {
     return () => subscription.remove();
   }, [workshop, focused]);
   return <View style={{ flex: 1 }}>
-    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar><ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.hero}><JollyPortrait size={132} animated borderRadius={38} /><Text style={styles.title}>你好，我是 Jolly</Text><Text style={styles.caption}>每个应用都有自己的心愿工坊，可以同时制作。</Text></View>
+    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar><FlatList data={workspaces} keyExtractor={item => item.appId} initialNumToRender={8} windowSize={7} contentContainerStyle={styles.content} ListHeaderComponent={<View style={{ gap: 20 }}>
+      <View style={styles.hero}><JollyPortrait size={132} animated={focused && !workshop} borderRadius={38} /><Text style={styles.title}>你好，我是 Jolly</Text><Text style={styles.caption}>每个应用都有自己的心愿工坊，可以同时制作。</Text></View>
       <Pressy accessibilityRole="button" onPress={() => context.navigation.create()}><Surface tone="raised" radius={24} style={styles.workshop}><Icon name="plus" size={25} color={colors.accent} /><View style={{ flex: 1, gap: 5 }}><Text style={styles.name}>创作新应用</Text><Text style={styles.copy}>说说心愿，让 Jolly 帮你实现</Text></View><Icon name="chevron" size={18} color={colors.ink3} /></Surface></Pressy>
       {workspaces.length ? <Text style={styles.name}>应用工坊</Text> : <Text style={styles.caption}>有一个想法，就从上面开始。作品和安装的应用都可以在“我的作品与应用”里管理。</Text>}
-      {workspaces.map(item => <WorkspaceRow key={item.appId} item={item} onPress={() => { setTarget(item.appId); context.storage.set("workshopTarget", item.appId); setWorkshop(true); }} />)}
-    </ScrollView></Screen></View>
-    {workspaces.map(item => <View key={item.appId} style={{ flex: 1, display: workshop && target === item.appId ? "flex" : "none" }}><Workshop visible={focused && workshop && target === item.appId} title={item.title} appId={item.appId} originalAppId={item.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (focused && selected.current === item.appId) setWorkshop(true); }} /></View>)}
+      </View>} renderItem={({ item }) => <WorkspaceRow item={item} onPress={() => { setTarget(item.appId); context.storage.set("workshopTarget", item.appId); setWorkshop(true); }} />} /></Screen></View>
+    {currentWorkspace && (workshop || opened) ? <View key={`${scope}.${currentWorkspace.appId}`} style={{ flex: 1, display: workshop ? "flex" : "none" }}><Workshop visible={focused && workshop} title={currentWorkspace.title} appId={currentWorkspace.appId} originalAppId={currentWorkspace.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (focused && selected.current === currentWorkspace.appId) setWorkshop(true); }} /></View> : null}
   </View>;
 }
 function WorkspaceRow({ item, onPress }: { item: Workspace; onPress: () => void }) {

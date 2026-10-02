@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getAppContext } from "@zijinhua/app-sdk";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView as ScrollView, KeyboardAvoidingView, type KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -30,7 +31,11 @@ export type AgentTrace = {
   state: "running" | "done" | "error";
 };
 
+const nameListeners = new Set<(name: string) => void>();
+
 type Props = {
+  visible: boolean;
+  stage: import("./run").WorkshopStage;
   canContinue: boolean;
   targetTitle: string;
   value: string;
@@ -152,7 +157,7 @@ function toneColors(tone: Tone, colors: Theme): { text: string; tint: string } {
 }
 
 export const AgentScreen = memo(function AgentScreen({
-  canContinue, targetTitle,
+  visible, stage, canContinue, targetTitle,
   value,
   prompt,
   status,
@@ -179,9 +184,19 @@ export const AgentScreen = memo(function AgentScreen({
   publicReleaseId, candidateReleaseId, history, historyCursor, historyBusy, historyError, onLoadHistory, scrollKey, preparation,
 }: Props) {
   const { colors } = useTheme();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const scrollTarget = useRef(Number(getAppContext().storage.get(scrollKey)) || 0);
   const scrollRestored = useRef(scrollTarget.current === 0);
+  const viewport = useRef(0);
+  const contentHeight = useRef(0);
+  function restoreScroll() {
+    if (scrollRestored.current || sessionLoading || contentHeight.current <= 0 || viewport.current <= 0) return;
+    const y = Math.min(Math.max(0, scrollTarget.current), Math.max(0, contentHeight.current - viewport.current));
+    scrollRef.current?.scrollTo({ y, animated: false });
+    scrollRestored.current = true;
+    getAppContext().storage.set(scrollKey, String(y));
+  }
+  useEffect(() => { restoreScroll(); }, [sessionLoading, visible]);
 
   const [companionName, setCompanionName] = useState("狗蛋");
   const [nameInput, setNameInput] = useState("狗蛋");
@@ -189,22 +204,18 @@ export const AgentScreen = memo(function AgentScreen({
 
   const [traceExpanded, setTraceExpanded] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-  const [elapsedTenths, setElapsedTenths] = useState(0);
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const [detailTrace, setDetailTrace] = useState<AgentTrace>();
   const [showLastSnapshot, setShowLastSnapshot] = useState(false);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const saved = await readShellValue("shell.companion.name.v1");
-        if (saved) {
-          setCompanionName(saved);
-          setNameInput(saved);
-        }
-      } catch (err) {
-        // use default "狗蛋"
-      }
-    })();
-  }, []);
+    let live = true;
+    const update = (name: string) => { if (live) { setCompanionName(name); setNameInput(name); } };
+    nameListeners.add(update);
+    if (visible) void readShellValue("shell.companion.name.v1").then(saved => { if (saved) update(saved); }).catch(() => {});
+    return () => { live = false; nameListeners.delete(update); };
+  }, [visible]);
 
   const handleSaveName = async () => {
     const trimmed = nameInput.trim() || "狗蛋";
@@ -212,6 +223,7 @@ export const AgentScreen = memo(function AgentScreen({
     setNameModalVisible(false);
     try {
       writeShellValue("shell.companion.name.v1", trimmed);
+      for (const listener of nameListeners) listener(trimmed);
     } catch (err) {
       console.log("save companion name failed", err);
     }
@@ -222,17 +234,6 @@ export const AgentScreen = memo(function AgentScreen({
     setNameModalVisible(true);
   };
 
-  useEffect(() => {
-    if (!busy) return;
-    setTraceExpanded(false);
-    const origin = startedAt > 0 ? startedAt : Date.now();
-    const tick = () => setElapsedTenths(Math.max(0, Math.round((Date.now() - origin) / 100)));
-    tick();
-    const clockTimer = setInterval(tick, 100);
-    return () => {
-      clearInterval(clockTimer);
-    };
-  }, [busy, prompt, startedAt]);
 
   const actionTraces = useMemo(() => traces.filter((t) => t.kind !== "text"), [traces]);
   const stillRunning = busy;
@@ -270,6 +271,7 @@ export const AgentScreen = memo(function AgentScreen({
       return { key: `boot-${status || "init"}`, badge: "准备", text: (status || "正在构思你的想法").trim() };
     }
 
+    if (["paused", "reply", "blocked"].includes(stage)) return { key: stage, badge: stage === "paused" ? "暂停" : "等待", text: status || "需要你的回应，尚未完成" };
     if (hasError) {
       const errNode = [...traces].reverse().find((t) => t.state === "error");
       return {
@@ -281,18 +283,11 @@ export const AgentScreen = memo(function AgentScreen({
 
     return {
       key: `done-${actionTraces.length}-${status}`,
-      badge: "完成",
-      text: actionTraces.length > 0 ? "做好了，可以去体验" : (status || "做好了，可以去体验").trim(),
+      badge: stage === "ready" ? "完成" : stage === "load" ? "交付" : "状态",
+      text: showDelivery ? versionLoaded ? "作品已打开" : "请查看上方交付状态" : canContinue ? "可以继续修改" : status || "尚未开始",
     };
-  }, [stillRunning, status, actionTraces, hasError, traces]);
+  }, [stillRunning, status, actionTraces, hasError, traces, stage, showDelivery, versionLoaded, canContinue]);
 
-  const elapsedText = useMemo(() => {
-    const totalSec = elapsedTenths / 10;
-    if (totalSec === 0 && !busy) return "";
-    return totalSec < 60
-      ? `${totalSec.toFixed(1)}s`
-      : `${Math.floor(totalSec / 60)}m ${(totalSec % 60).toFixed(0)}s`;
-  }, [elapsedTenths, busy]);
 
   const runningTrace = useMemo(() => traces.find((t) => t.state === "running"), [traces]);
 
@@ -317,9 +312,9 @@ export const AgentScreen = memo(function AgentScreen({
     return "idle";
   }, [hasSession, stillRunning, traces.length, runningTrace, status, hasError, finalReport]);
 
-  const phase: "busy" | "error" | "done" | "idle" = stillRunning ? "busy" : hasError ? "error" : hasSession ? "done" : "idle";
+  const phase: "busy" | "error" | "done" | "idle" = stage === "making" ? "busy" : stage === "failed" || stage === "blocked" ? "error" : stage === "ready" || stage === "load" ? "done" : "idle";
   const publicCurrent = Boolean(candidateReleaseId && publicReleaseId === candidateReleaseId);
-  const phaseLabel = showDelivery ? publicCurrent ? "已公开" : versionLoaded ? "已打开" : "待体验" : canContinue ? "可继续修改" : awaitingReply ? "需要回应" : { busy: "制作中", error: "需要处理", done: "已完成", idle: "尚未开始" }[phase];
+  const phaseLabel = stage === "ready" && publicCurrent ? "已公开" : stage === "ready" && versionLoaded ? "已打开" : { draft: "尚未开始", making: "制作中", reply: "需要回应", load: "待体验", ready: "可继续修改", paused: "已暂停", failed: "制作未完成", blocked: "需要处理" }[stage];
   const phaseTone =
     phase === "busy"
       ? { dot: colors.accent, text: colors.accentText, tint: colors.accentTint }
@@ -347,10 +342,9 @@ export const AgentScreen = memo(function AgentScreen({
 
       <ScrollView removeClippedSubviews={false}
         ref={scrollRef}
+        onLayout={event => { viewport.current = event.nativeEvent.layout.height; restoreScroll(); }}
         onContentSizeChange={(_, height) => {
-          if (!scrollRestored.current && !sessionLoading && height > scrollTarget.current) {
-            scrollRef.current?.scrollTo({ y: scrollTarget.current, animated: false }); scrollRestored.current = true;
-          }
+          contentHeight.current = height; restoreScroll();
         }}
         onScroll={event => {
           if (scrollRestored.current) getAppContext().storage.set(scrollKey, String(Math.max(0, event.nativeEvent.contentOffset.y)));
@@ -415,7 +409,7 @@ export const AgentScreen = memo(function AgentScreen({
         {hasSession ? (
           <View style={styles.compactHero}>
             <View style={styles.portraitSmall}>
-              <JollyVideoPlayer state={jollyLiveState} width={64} height={64} borderRadius={20} resizeMode="cover" />
+              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={64} height={64} borderRadius={20} resizeMode="cover" />
             </View>
             <View style={styles.heroCopy}>
               <Pressy accessibilityRole="button" accessibilityLabel="修改昵称" onPress={openNameEditor} scale={0.97} style={styles.nameRow}>
@@ -430,7 +424,7 @@ export const AgentScreen = memo(function AgentScreen({
         ) : (
           <Animated.View style={styles.stage}>
             <View style={styles.portraitLarge}>
-              <JollyVideoPlayer state={jollyLiveState} width={124} height={124} borderRadius={38} resizeMode="cover" />
+              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={124} height={124} borderRadius={38} resizeMode="cover" />
             </View>
             <Text style={styles.stageTitle}>今天想做点什么？</Text>
             <Text style={styles.stageBody}>写下一个念头，{companionName} 会把它做成可以打开的小应用。</Text>
@@ -495,7 +489,7 @@ export const AgentScreen = memo(function AgentScreen({
                 </View>
 
                 <View style={styles.tickerRight}>
-                  {elapsedText ? <Text style={styles.elapsed}>{elapsedText}</Text> : null}
+                  <ElapsedTime startedAt={startedAt} busy={busy} visible={visible} />
                   {actionTraces.length > 0 ? (
                     <View style={[styles.expand, traceExpanded && styles.expandOpen]}>
                       <Icon name="chevron" size={14} color={colors.ink3} strokeWidth={2} />
@@ -506,12 +500,13 @@ export const AgentScreen = memo(function AgentScreen({
 
               {traceExpanded && actionTraces.length > 0 ? (
                 <Animated.View style={styles.steps}>
-                  <Text style={styles.stepsHead}>共 {actionTraces.length} 步，点一步看输出</Text>
-                  {actionTraces.map((item, idx) => {
+                  <Text style={styles.stepsHead}>共 {actionTraces.length} 步，显示最近 40 步</Text>
+                  {actionTraces.length > 40 ? <Pressy onPress={() => setStepsOpen(true)}><Text style={styles.ghostText}>查看全部步骤</Text></Pressy> : null}
+                  {actionTraces.slice(-40).map((item, idx, recent) => {
                     const cleanedDetail = cleanTraceDetail(item.detail);
                     const hasDetail = cleanedDetail.length > 0;
                     const rowOpen = expandedRowId === item.id;
-                    const isLatest = idx === actionTraces.length - 1;
+                    const isLatest = idx === recent.length - 1;
                     const isErr = item.state === "error";
                     const isRun = stillRunning && isLatest && item.state === "running" && !isErr;
                     const { chip, tone } =
@@ -531,7 +526,7 @@ export const AgentScreen = memo(function AgentScreen({
                         >
                           <View style={styles.stepRail}>
                             {isRun ? <PulseDot color={dotColor} /> : <View style={[styles.stepDot, { backgroundColor: dotColor }]} />}
-                            {idx === actionTraces.length - 1 ? null : <View style={styles.stepLine} />}
+                            {idx === recent.length - 1 ? null : <View style={styles.stepLine} />}
                           </View>
                           <Text style={[styles.stepTitle, isErr && { color: colors.redText }]} numberOfLines={1}>
                             {item.title.trim()}
@@ -546,6 +541,7 @@ export const AgentScreen = memo(function AgentScreen({
                               {cleanedDetail.slice(0, 800)}
                               {cleanedDetail.length > 800 ? "\n… 已截断" : ""}
                             </Text>
+                            <Pressy accessibilityRole="button" onPress={() => setDetailTrace(item)}><Text style={styles.ghostText}>查看完整输出</Text></Pressy>
                           </Animated.View>
                         ) : null}
                       </View>
@@ -585,7 +581,8 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
         {history.length || historyCursor || historyError ? <Surface tone="inset" style={styles.progress}>
           <Text style={styles.reportTitle}>制作记录</Text>
-          {history.map(item => <View key={item.id} style={styles.detail}><Text style={styles.stepTitle}>{item.title}</Text>{item.detail ? <Text selectable style={styles.detailText}>{item.detail}</Text> : null}</View>)}
+          {history.slice(0, 3).map(item => <Text key={item.id} style={styles.stepTitle} numberOfLines={1}>{item.title}</Text>)}
+          <Pressy accessibilityRole="button" onPress={() => setRecordsOpen(true)} style={styles.ghost}><Text style={styles.ghostText}>查看制作记录</Text></Pressy>
           {historyError ? <><Text accessibilityLiveRegion="polite" style={styles.deliveryPanelMessage}>{historyError}</Text>{!historyCursor ? <Pressy disabled={busy || sessionLoading} onPress={onNewSession} style={styles.ghost}><Text style={styles.ghostText}>重新同步记录</Text></Pressy> : null}</> : null}
           {historyCursor ? <Pressy disabled={historyBusy} onPress={onLoadHistory} style={styles.ghost}><Text style={styles.ghostText}>{historyBusy ? "正在加载…" : "加载更多制作记录"}</Text></Pressy> : null}
         </Surface> : null}
@@ -658,8 +655,14 @@ export const AgentScreen = memo(function AgentScreen({
         onStop={onStop}
       /> : null}
 
+      <Modal visible={recordsOpen || stepsOpen} onRequestClose={() => { setRecordsOpen(false); setStepsOpen(false); }}>
+        <Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={() => { setRecordsOpen(false); setStepsOpen(false); }} /><Text style={styles.title}>{stepsOpen ? "全部步骤" : "制作记录"}</Text></ScreenBar>
+          <FlatList data={stepsOpen ? actionTraces : history} keyExtractor={item => item.id} initialNumToRender={8} windowSize={5} contentContainerStyle={styles.content} renderItem={({ item }) => <Pressy onPress={() => setDetailTrace(item)}><Surface style={styles.report}><Text style={styles.stepTitle}>{item.title}</Text>{item.detail ? <Text numberOfLines={6} style={styles.detailText}>{item.detail}</Text> : null}<Text style={styles.ghostText}>查看完整输出</Text></Surface></Pressy>} ListFooterComponent={!stepsOpen && historyCursor ? <Pressy disabled={historyBusy} onPress={onLoadHistory} style={styles.ghost}><Text style={styles.ghostText}>{historyBusy ? "正在加载…" : "加载更多"}</Text></Pressy> : null} />
+        </Screen>
+      </Modal>
+      <Modal visible={!!detailTrace} onRequestClose={() => setDetailTrace(undefined)}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={() => setDetailTrace(undefined)} /><Text style={styles.title}>完整输出</Text></ScreenBar><ScrollView contentContainerStyle={styles.content}><Text selectable style={styles.stepTitle}>{detailTrace?.title}</Text><Text selectable style={styles.detailText}>{detailTrace?.detail || "没有输出内容"}</Text></ScrollView></Screen></Modal>
       <Modal visible={nameModalVisible} transparent animationType="fade" onRequestClose={() => setNameModalVisible(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setNameModalVisible(false)}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}><Pressable style={styles.modalOverlay} onPress={() => setNameModalVisible(false)}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.modalWrap}>
             <Surface tone="raised" radius={colors.radius.xl} lifted style={styles.modalCard}>
               <Text style={styles.modalTitle}>给搭子起个名字</Text>
@@ -684,11 +687,20 @@ export const AgentScreen = memo(function AgentScreen({
               </View>
             </Surface>
           </Pressable>
-        </Pressable>
+        </Pressable></KeyboardAvoidingView>
       </Modal>
     </Screen>
   );
 });
+
+function ElapsedTime({ startedAt, busy, visible }: { startedAt: number; busy: boolean; visible: boolean }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => { if (!startedAt) { setSeconds(0); return; } if (!busy || !visible) return;
+    const tick = () => setSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000))); tick();
+    const timer = setInterval(tick, 1000); return () => clearInterval(timer);
+  }, [startedAt, busy, visible]);
+  return seconds ? <Text style={styles.elapsed}>{seconds < 60 ? seconds + "s" : Math.floor(seconds / 60) + "m " + seconds % 60 + "s"}</Text> : null;
+}
 
 /** 正在进行的事用一颗缓慢明灭的点表示，不用转圈。 */
 function PulseDot({ color }: { color: string }) {

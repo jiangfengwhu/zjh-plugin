@@ -2,6 +2,7 @@ import { getAppContext } from "@zijinhua/app-sdk";
 import React, { useMemo } from "react";
 import { StyleSheet, View, ViewStyle } from "react-native";
 import Video, { ViewType } from "react-native-video";
+import { useIsFocused } from "@react-navigation/native";
 
 export type JollyVideoState =
   | "idle"
@@ -50,6 +51,7 @@ export function JollyVideoPlayer({
   still = false,
   style,
 }: JollyVideoProps) {
+  const focused = useIsFocused();
   const source = useMemo(() => sourceOf(src || STATE_TO_VIDEO[state] || STATE_TO_VIDEO.idle), [src, state]);
 
   return (
@@ -63,7 +65,7 @@ export function JollyVideoPlayer({
         repeat={repeat}
         muted={muted}
         // 定格时停在第一帧，不播放。
-        paused={still}
+        paused={still || !focused}
         // 静音的装饰视频不去抢音频焦点，也不在后台继续播。
         disableFocus
         playInBackground={false}

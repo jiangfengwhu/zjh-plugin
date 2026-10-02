@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import FastImage from "@d11/react-native-fast-image";
-import { Pressy, Surface, themedStyleSheet, useTheme } from "@zijinhua/app-sdk/ui";
+import { EdgeModal, BackChip, Screen, ScreenBar, Pressy, Surface, themedStyleSheet, useTheme } from "@zijinhua/app-sdk/ui";
 export type ApplicationFeedback = { appId: string; releaseId: string; title: string; body: string; images: string[] };
 export function readFeedback(raw?: string): ApplicationFeedback | undefined {
   try {
@@ -13,13 +14,14 @@ export function feedbackPrompt(value: ApplicationFeedback) {
   return `修改「${value.title}」\n用户体验的应用 ID：${value.appId}\n体验版本 releaseId：${value.releaseId}\n以上版本用于复现和理解问题，遵守平台指定的目标应用与工作分支。\n\n用户确认的修改反馈：\n${value.body.trim()}${value.images.length ? `\n\n参考截图（R2 链接）：\n${value.images.join("\n")}\n请用可用的图片查看工具读取这些附图。如果无法读取，请明确告知，不能假装看过。不要把反馈截图作为应用素材打包。` : ""}`;
 }
 export function FeedbackReview({ value, owned, disabled, onChange, onConfirm, onDiscard }: { value: ApplicationFeedback; owned: boolean; disabled: boolean; onChange: (body: string) => void; onConfirm: () => void; onDiscard: () => void }) {
-  const { colors } = useTheme();
+  const { colors } = useTheme(); const [preview, setPreview] = useState<string>();
   return <Surface style={styles.card}><Text style={styles.title}>确认这次修改</Text><Text style={styles.caption}>{value.title} · 体验版本 {value.releaseId.slice(0, 12)}</Text>
     <Text style={styles.caption}>{owned ? "继续这个作品原有的 Jules 会话，保留本机应用数据。" : "基于原作的公开版本创作新作品，不修改原作者的应用。"}</Text>
     <TextInput accessibilityLabel="确认修改反馈" multiline maxLength={2000} value={value.body} onChangeText={onChange} editable={!disabled} style={styles.input} />
-    <View style={styles.images}>{value.images.map(url => <FastImage key={url} source={{ uri: url }} resizeMode={FastImage.resizeMode.contain} style={styles.image} />)}</View>
+    <View style={styles.images}>{value.images.map(url => <Pressy key={url} accessibilityLabel="放大反馈截图" onPress={() => setPreview(url)}><FastImage source={{ uri: url }} resizeMode={FastImage.resizeMode.contain} style={styles.image} /></Pressy>)}</View>
     <Text style={styles.caption}>确认后，反馈和截图链接会发送给 Jules。此前不会开始制作。</Text>
     <View style={styles.actions}><Pressy disabled={disabled} onPress={onDiscard}><Text style={styles.secondary}>暂不发送</Text></Pressy><Pressy disabled={disabled || !value.body.trim()} onPress={onConfirm}><Text style={styles.link}>{owned ? "确认并继续制作" : "确认并开始改造"}</Text></Pressy></View>
+    <EdgeModal visible={!!preview} onRequestClose={() => setPreview(undefined)}><Screen style={{ flex: 1, backgroundColor: colors.canvas }}><ScreenBar style={{ padding: 16 }}><BackChip onPress={() => setPreview(undefined)} /></ScreenBar>{preview ? <FastImage source={{ uri: preview }} resizeMode={FastImage.resizeMode.contain} style={{ flex: 1 }} /> : null}</Screen></EdgeModal>
   </Surface>;
 }
 const styles = themedStyleSheet(t => ({ card: { padding: 18, gap: 14 }, title: { color: t.ink1, fontSize: 18, fontWeight: "600" }, caption: { color: t.ink3, lineHeight: 20, fontSize: 13 }, input: { color: t.ink1, backgroundColor: t.field, padding: 12, minHeight: 100, borderRadius: 12, textAlignVertical: "top" as const }, images: { flexDirection: "row", gap: 12 }, image: { width: 85, height: 135, backgroundColor: t.field, borderRadius: 10 }, actions: { flexDirection: "row", flexWrap: "wrap", gap: 20 }, link: { color: t.accentText, paddingVertical: 10 }, secondary: { color: t.ink3, paddingVertical: 10 } }));

@@ -213,6 +213,9 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   async function runCloud(text: string, status = "正在生成", original = text, preparedTitle?: string) {
     if (busyRef.current || detached.current || context.storage.get("__accountScope") !== accountScope) return;
     if (!text.trim() || text.length > 8000) { context.toast.show("修改需求需为 1 到 8000 个字符，内容已保留", "error"); return; }
+    let workspaces: Array<{ appId: string; title: string }>;
+    try { workspaces = JSON.parse(context.storage.get("workspaces") || "[]"); if (!Array.isArray(workspaces) || workspaces.some(item => !item || typeof item.appId !== "string" || typeof item.title !== "string")) throw new Error("invalid"); }
+    catch { context.toast.show("作品记录暂时无法读取，请重新打开工坊；需求已保留", "error"); return; }
     busyRef.current = true;
     setBusy(true);
     // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。
@@ -224,7 +227,6 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
     setDeliveryStage("making");
     setPendingDelivery(false); setHistory([]); setHistoryCursor(undefined);
     if (title === "新应用" || title === "未命名作品") {
-      const workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
       const workspace = workspaces.find((item: { appId: string }) => item.appId === appId);
       if (workspace) { workspace.title = (preparedTitle || original).replace(/\s+/g, " ").slice(0, 20); context.storage.set("workspaces", JSON.stringify(workspaces)); }
     }
@@ -453,7 +455,8 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
     await runCloud(text);
   }
 
-  return <AgentScreen
+  const stage: WorkshopStage = busy ? "making" : workshopPhase === "failed" ? "failed" : workshopPhase === "stopped" ? "paused" : awaitingReply ? deliveryStage === "blocked" ? "blocked" : "reply" : showDelivery ? deliveryStage : canContinue ? "ready" : "draft";
+  return <AgentScreen visible={visible} stage={stage}
     preparation={feedback && !busy ? <FeedbackReview value={feedback} owned={feedback.appId === appId} disabled={sessionLoading || updateBusy || Boolean(sessionId && !awaitingReply && !canContinue)} onChange={body => context.storage.set(`pendingFeedback.${appId}`, JSON.stringify({ ...feedback, body }))} onDiscard={() => context.storage.remove(`pendingFeedback.${appId}`)} onConfirm={() => {
       if (busyRef.current || sessionLoading || updateBusy || detached.current || !visibleRef.current || context.storage.get("__accountScope") !== accountScope || (sessionId && !awaitingReply && !canContinue)) return;
       const text = feedbackPrompt(feedback); setRequirement(text); void runCloud(text, "正在提交修改反馈", feedback.body, feedback.appId !== appId ? `基于${feedback.title}` : undefined);

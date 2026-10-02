@@ -5,7 +5,8 @@ import { Pressy, Surface, themedStyleSheet, useTheme } from "@zijinhua/app-sdk/u
 
 type Draft = { title: string; purpose: string; features: string; excluded: string; acceptance: string; suggestions: string };
 type Question = { text: string; options: string[] };
-type Preparation = { original: string; answers: string[]; question?: Question; draft?: Draft };
+type Preparation = { original: string; answers: string[]; question?: Question; draft?: Draft; answer?: string; revision?: string; editing?: boolean };
+const pending = new Map<string, { signature: string; promise: Promise<ReturnType<typeof parseResult>>; settled?: boolean }>();
 const SYSTEM = `你是 Jolly 的需求整理助手，帮助用户把想法变成简洁、可交付的首版需求。只输出 JSON，不输出 Markdown。
 需求已经明确时直接生成需求卡片，不为了完整而追问。不擅自扩展功能、技术架构、商业化或登录需求。
 仅当关键歧义会影响实现时，一次问一个简短问题，给 2–3 个互斥快捷选项，允许自由回答。最多两轮，用户选择跳过或已有需求卡片时必须生成卡片。
@@ -35,10 +36,10 @@ export function RequirementComposer({ appId, value, onChange, disabled, visible,
     if (!item || typeof item.original !== "string" || !Array.isArray(item.answers) || item.answers.length > 2 || item.answers.some((answer: unknown) => typeof answer !== "string")) return undefined;
     if (item.question && (typeof item.question.text !== "string" || !Array.isArray(item.question.options) || item.question.options.some((option: unknown) => typeof option !== "string"))) return undefined;
     if (item.draft && ["title", "purpose", "features", "excluded", "acceptance", "suggestions"].some(field => typeof item.draft[field] !== "string")) return undefined;
-    return item;
+    return { ...item, answer: typeof item.answer === "string" ? item.answer : "", revision: typeof item.revision === "string" ? item.revision : "", editing: item.editing === true };
   } catch { return undefined; } });
   const [preparation, setPreparation] = useState<Preparation>(saved || { original: value, answers: [] });
-  const [answer, setAnswer] = useState(""); const [revision, setRevision] = useState(""); const [editing, setEditing] = useState(false);
+  const [answer, setAnswer] = useState(saved?.answer || ""); const [revision, setRevision] = useState(saved?.revision || ""); const [editing, setEditing] = useState(!!saved?.editing);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [needsConfig, setNeedsConfig] = useState(false);
   const request = useRef(0); const working = useRef(false); const alive = useRef(true); const initial = useRef(true);
   useEffect(() => () => { alive.current = false; request.current++; }, []);
@@ -47,7 +48,7 @@ export function RequirementComposer({ appId, value, onChange, disabled, visible,
     if (initial.current) { initial.current = false; if (!value && saved?.original) { onChange(saved.original); return; } }
     if (value !== preparation.original) { request.current++; working.current = false; setBusy(false); setError(""); setPreparation({ original: value, answers: [] }); setAnswer(""); setRevision(""); setEditing(false); }
   }, [value]);
-  useEffect(() => { if (context.storage.get("__accountScope") === scope) context.storage.set(key, JSON.stringify(preparation)); }, [preparation]);
+  useEffect(() => { if (context.storage.get("__accountScope") === scope) context.storage.set(key, JSON.stringify({ ...preparation, answer, revision, editing })); }, [preparation, answer, revision, editing]);
   const valid = (id: number) => alive.current && request.current === id && context.storage.get("__accountScope") === scope;
   async function organize(reply?: string, forceDraft = false) {
     if (working.current || disabled || !visible || !preparation.original.trim()) return;
@@ -55,20 +56,33 @@ export function RequirementComposer({ appId, value, onChange, disabled, visible,
     // Preserve answers even if this request fails; retry does not repeat a question.
     setPreparation(next); setAnswer(""); const id = ++request.current; working.current = true; setBusy(true); setError(""); setNeedsConfig(false);
     try {
-      if (!context.ai) throw new Error("请先更新紫金花平台，再整理想法");
-      const providers = await context.ai.listProviders();
-      if (!valid(id)) return;
-      if (!providers.length) { setNeedsConfig(true); throw new Error("还没有配置 AI 引擎，可以配置后整理，也可以直接按原文制作。"); }
-      const result = await context.ai.complete({ messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: JSON.stringify({ original: next.original, answers: next.answers, existingDraft: next.draft, modification: revision.trim() || undefined, mustDraft: forceDraft || Boolean(next.draft) || next.answers.length >= 2 }) },
-      ] });
-      if (!valid(id)) return;
-      if (!result.ok) { if (result.code === "NOT_CONFIGURED") setNeedsConfig(true); throw new Error(result.error); }
-      const parsed = parseResult(result.text);
+      const input = { original: next.original, answers: next.answers, existingDraft: next.draft, modification: revision.trim() || undefined, mustDraft: forceDraft || Boolean(next.draft) || next.answers.length >= 2 };
+      const signature = JSON.stringify(input); const operationKey = scope + "." + appId;
+      let operation = pending.get(operationKey);
+      if (!operation || operation.signature !== signature) {
+        const promise = (async () => {
+          if (!context.ai) throw new Error("请先更新紫金花平台，再整理想法");
+          const providers = await context.ai.listProviders();
+          if (context.storage.get("__accountScope") !== scope) throw new Error("账号已改变，请重新打开工坊");
+          if (!providers.length) throw new Error("还没有配置 AI 引擎，可以配置后整理，也可以直接按原文制作。");
+          const result = await context.ai.complete({ messages: [{ role: "system", content: SYSTEM }, { role: "user", content: signature }] });
+          if (!result.ok) throw new Error(result.error);
+          return parseResult(result.text);
+        })();
+        operation = { signature, promise }; pending.set(operationKey, operation);
+        const retainedOperation = operation;
+        void promise.then(() => {
+          retainedOperation.settled = true;
+          for (const [key, item] of pending) { if (pending.size <= 8) break; if (item.settled) pending.delete(key); }
+        }, () => {});
+        void promise.catch(() => { if (pending.get(operationKey)?.promise === promise) pending.delete(operationKey); });
+      }
+      const parsed = await operation.promise;
+      if (!valid(id) || !visible) return;
+      pending.delete(operationKey);
       if (parsed.question && (forceDraft || next.draft || next.answers.length >= 2)) throw new Error("AI 仍在追问，请重试生成需求卡片，或直接按原文制作。");
       setPreparation({ original: next.original, answers: next.answers, ...parsed }); setRevision(""); setEditing(false);
-    } catch (e) { if (valid(id)) { setError(e instanceof Error ? e.message : "整理失败，请重试"); context.toast.show("需求整理未完成，原文已保留", "error"); } }
+    } catch (e) { if (valid(id)) { setNeedsConfig(e instanceof Error && /配置|引擎/.test(e.message)); setError(e instanceof Error ? e.message : "整理失败，请重试"); context.toast.show("需求整理未完成，原文已保留", "error"); } }
     finally { if (valid(id)) { working.current = false; setBusy(false); } }
   }
   function start(raw = false) {
