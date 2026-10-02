@@ -211,6 +211,8 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   }
 
   async function runCloud(text: string, status = "正在生成", original = text, preparedTitle?: string) {
+    if (busyRef.current || detached.current || context.storage.get("__accountScope") !== accountScope) return;
+    if (!text.trim() || text.length > 8000) { context.toast.show("修改需求需为 1 到 8000 个字符，内容已保留", "error"); return; }
     busyRef.current = true;
     setBusy(true);
     // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。

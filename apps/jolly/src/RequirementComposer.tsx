@@ -77,6 +77,7 @@ export function RequirementComposer({ appId, value, onChange, disabled, visible,
     if (!raw && draft && (!draft.title.trim() || !draft.purpose.trim() || !draft.features.trim() || !draft.acceptance.trim())) { setError("请补全名称、用途、首版功能和完成标准"); return; }
     const original = preparation.original.trim(); if (!original) return;
     const text = raw || !draft ? original : `${draft.title}\n\n用户原始想法：\n${original}\n\n以下是用户已确认的首版需求，以此为实现范围：\n应用名称：${draft.title}\n用途：${draft.purpose}\n首版功能：\n${draft.features}\n暂不包含：\n${draft.excluded || "无额外排除项"}\n完成标准：\n${draft.acceptance}\n不要将未确认的 AI 建议自动加入首版。`;
+    if (text.length > 8000) { setError(`需求合计 ${text.length} 个字符，最多 8000 个。请精简原始想法或需求卡片，内容已保留。`); context.toast.show("需求过长，请精简后再开始制作", "error"); return; }
     onStart(text, original, raw ? undefined : draft?.title);
   }
   const locked = disabled || busy;
