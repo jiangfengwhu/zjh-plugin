@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { getCreationService } from "@zijinhua/app-sdk/creation";
+import type { WorkshopStatus } from "@zijinhua/app-sdk/creation";
+import { AppState } from "react-native";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
 import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type WorkshopStage } from "./run";
-export default function Workshop({ appId, title, originalAppId, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; onBack?: () => void; onShowWorkshop?: () => void }) {
+export default function Workshop({ appId, title, originalAppId, visible, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; visible: boolean; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
   const [accountScope] = useState(() => context.storage.get("__accountScope"));
   const [service] = useState(() => getCreationService(appId, originalAppId));
@@ -28,11 +30,21 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   const [awaitingReply, setAwaitingReply] = useState(false);
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [deliveryStage, setDeliveryStage] = useState<WorkshopStage>("draft");
+  const [publicReleaseId, setPublicReleaseId] = useState<string>();
+  const [candidateReleaseId, setCandidateReleaseId] = useState<string>();
+  const [historyCursor, setHistoryCursor] = useState<string>();
+  const [history, setHistory] = useState<AgentTrace[]>([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [pendingDelivery, setPendingDelivery] = useState(false);
+  const visibleRef = useRef(visible); visibleRef.current = visible;
+  const cacheKey = `workshopView.${accountScope}.${appId}`;
   const cloudStop = useRef(false);
   const stopRequested = useRef(false);
   const cloudRun = useRef<{ runId?: string } | null>(null);
   const busyRef = useRef(false);
   const resumedCloud = useRef(false);
+  const resumeFlight = useRef(false);
   const detached = useRef(false);
   useEffect(() => () => { detached.current = true; cloudStop.current = true; }, []);
 
@@ -61,7 +73,36 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     noteJollyRun({ appId, stage, phase: canContinue ? "ready" : workshopPhase, wish: prompt || prev.wish, status: status || prev.status, steps: prev.steps });
   }, [busy, canContinue, workshopPhase, awaitingReply, showDelivery, deliveryStage, prompt, status, sessionLoading, sessionId]);
 
-  useEffect(() => { void resumeCloud(); }, []);
+  useEffect(() => {
+    if (!visible) return;
+    if (!busyRef.current) { resumedCloud.current = false; void resumeCloud(); }
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active" && visibleRef.current && !busyRef.current) { resumedCloud.current = false; void resumeCloud(); }
+    });
+    return () => subscription.remove();
+  }, [visible]);
+  useEffect(() => {
+    if (!visible || !pendingDelivery) return;
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active" && !busyRef.current) { resumedCloud.current = false; void resumeCloud(); }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [visible, pendingDelivery]);
+  useEffect(() => {
+    if (!sessionId || sessionLoading || detached.current || context.storage.get("__accountScope") !== accountScope) return;
+    context.storage.set(cacheKey, JSON.stringify({ sessionId, prompt, status, traces, requirement, startedAt: runStartedAt }));
+  }, [sessionId, sessionLoading, prompt, status, traces, requirement, runStartedAt]);
+  async function loadHistory() {
+    if (!historyCursor || historyBusy || !sessionId) return;
+    setHistoryBusy(true); setHistoryError("");
+    try {
+      const page = await service.readWorkshopHistory(sessionId, historyCursor);
+      if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
+      setHistory(previous => [...new Map([...previous, ...page.traces].map(item => [item.id, item])).values()]);
+      setHistoryCursor(page.nextCursor);
+    } catch (error) { setHistoryError(error instanceof Error ? error.message : "记录加载失败，请重试"); }
+    finally { setHistoryBusy(false); }
+  }
   useEffect(() => {
     const accept = () => {
       const prompt = context.storage.get(`pendingPrompt.${appId}`);
@@ -88,7 +129,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
 
   function newSession() {
     if (busyRef.current || sessionLoading || updateBusy) return;
-    if (sessionId && !canContinue) {
+    if (sessionId) {
       resumedCloud.current = false;
       setSessionLoading(true);
       void resumeCloud();
@@ -107,12 +148,14 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     setDeliveryMessage("");
   }
 
-  async function checkWorkshopDelivery(session: string) {
+  async function checkWorkshopDelivery(session: string, supplied?: WorkshopStatus) {
     setVersionLoaded(false);
     try {
-      const workshop = await workshopStatus(session);
+      const workshop = supplied || await workshopStatus(session);
+      setPendingDelivery(workshop.completed && !workshop.application);
       setCanContinue(workshop.completed);
       if (workshop.application?.title && workshop.application.title !== appId) setTargetTitle(workshop.application.title);
+      setCandidateReleaseId(workshop.application?.releaseId);
       setDeliveryStage(workshop.delivery === "loaded" ? "ready" : workshop.delivery === "update" ? "load" : "blocked");
       setDeliveryMessage(workshop.message || "暂时无法核对作品发布状态，请稍后重试。");
       if (workshop.delivery === "loaded") {
@@ -133,7 +176,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   }
 
   async function loadWish() {
-    if (updateBusy || !sessionId) return;
+    if (updateBusy || sessionLoading || !sessionId) return;
     if (typeof openPublication !== "function") { setDeliveryMessage("请先重载到最新平台版本，再体验或发布作品。"); return; }
     setUpdateBusy(true);
     try {
@@ -172,6 +215,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     setCanContinue(false);
     setShowDelivery(false);
     setDeliveryStage("making");
+    setPendingDelivery(false); setHistory([]); setHistoryCursor(undefined);
     if (title === "新应用" || title === "未命名作品") {
       const workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
       const workspace = workspaces.find((item: { appId: string }) => item.appId === appId);
@@ -202,6 +246,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
           if (stopRequested.current && !detached.current) void stop();
         },
         shouldStop: () => cloudStop.current,
+        shouldPause: () => !visibleRef.current,
       });
       if (outcome === "cancelled") {
         if (detached.current) return;
@@ -219,8 +264,6 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       waiting = true;
       setShowDelivery(true);
       setWorkshopPhase("ready");
-      await workshopStatus(cloudRun.current?.runId || await loadJulesSession());
-      
       setRequirement("");
       setStatus("正在检查新包");
       await checkWorkshopDelivery(cloudRun.current?.runId || await loadJulesSession());
@@ -241,6 +284,11 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
   }
 
   async function resumeCloud() {
+    if (resumeFlight.current) return;
+    resumeFlight.current = true;
+    try { await resumeCloudImpl(); } finally { resumeFlight.current = false; }
+  }
+  async function resumeCloudImpl() {
     if (resumedCloud.current || busyRef.current) return;
     resumedCloud.current = true;
     const run = await loadJulesRun();
@@ -250,17 +298,36 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       setSessionLoading(false);
       return;
     }
-    let info: { state: string; url: string; title: string; startedAt: number } | undefined;
+    if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
     try {
-      info = await inspectJulesSession(session);
-      if (info) {
-        const workshop = await workshopStatus(session);
+      const cached = JSON.parse(context.storage.get(cacheKey) || "null");
+      if (cached?.sessionId === session && !live.current.startedAt) {
+        setRunStartedAt(cached.startedAt || 0); setPrompt(cached.prompt || ""); setStatus(cached.status || "");
+        setTraces(cached.traces || []); setRequirement(value => value || cached.requirement || "");
+      }
+    } catch {}
+    let info: { state: string; url: string; title: string; startedAt: number } | undefined;
+    let delivery: WorkshopStatus | undefined;
+    try {
+      if (typeof service.readWorkshopDetail !== "function") throw new Error("请先重载紫金花平台，再接回工坊");
+      const detail = await service.readWorkshopDetail(session);
+      if (detached.current || context.storage.get("__accountScope") !== accountScope) return;
+      info = detail?.session; delivery = detail?.status;
+      if (detail) {
+        const workshop = detail.status;
+        setTraces(detail.traces);
+        setHistoryCursor(detail.historyCursor); setHistory([]);
+        setPublicReleaseId(detail.publicReleaseId);
+        setCandidateReleaseId(workshop.application?.releaseId);
+        setPendingDelivery(workshop.completed && !workshop.application);
         setShowDelivery(workshop.completed);
         setAwaitingReply(workshop.state === "AWAITING_USER_FEEDBACK" || workshop.state === "PAUSED");
-        if (workshop.state === "PAUSED") info.state = "PAUSED";
+        if (detail.stale) setHistoryError("制作记录暂未同步，稍后重试"); else setHistoryError("");
       }
     } catch (error) {
       console.log("jules resume failed", error instanceof Error ? error.message : error);
+      setDeliveryMessage(error instanceof Error ? error.message : "同步失败，请重试"); setAwaitingReply(true);
+      resumedCloud.current = false;
       return;
     } finally {
       setSessionLoading(false);
@@ -271,7 +338,9 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       setAwaitingReply(true);
       busyRef.current = false;
       setBusy(false);
-      setStatus(info?.state === "FAILED" ? "Jules 失败" : "上次的生成已经中断");
+      setStatus(info?.state === "FAILED" ? "制作失败，可以继续处理" : "上次的制作已经中断");
+      setPrompt(run?.prompt || info?.title || "这份作品");
+      if (info?.state === "FAILED") setDeliveryMessage(live.current.steps.join(" · ") || "请在下方描述需要修复的问题，继续这个作品。");
       console.log("jules resume dropped", session, info?.state ?? "missing");
       return;
     }
@@ -287,7 +356,6 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       busyRef.current = true;
       setBusy(true);
       setStatus("正在接上");
-      setTraces([{ id: "jules", kind: "status", title: "正在接上", state: "running", detail: info.url }]);
       cloudStop.current = false;
     stopRequested.current = false;
       cloudRun.current = { runId: session };
@@ -297,6 +365,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
           onStatus: setStatus,
           onTrace: setTraces,
           shouldStop: () => cloudStop.current,
+          shouldPause: () => !visibleRef.current,
         }, startedAt);
         if (outcome === "cancelled") {
         if (detached.current) return;
@@ -314,7 +383,6 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
         waiting = true;
         setShowDelivery(true);
         setWorkshopPhase("ready");
-        await workshopStatus(session);
         setStatus("正在检查新包");
         await checkWorkshopDelivery(session);
         setBusy(false);
@@ -343,7 +411,7 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
       console.log("jules resume completed", session);
       try {
         
-        await checkWorkshopDelivery(session);
+        await checkWorkshopDelivery(session, delivery);
       } catch (error) {
         console.log("jules resume check failed", error instanceof Error ? error.message : error);
       }
@@ -380,6 +448,9 @@ export default function Workshop({ appId, title, originalAppId, onBack, onShowWo
     startedAt={runStartedAt} sessionId={sessionId} sessionLoading={sessionLoading} onNewSession={newSession}
     showDelivery={showDelivery} versionLoaded={versionLoaded} awaitingReply={awaitingReply}
     deliveryBusy={updateBusy} deliveryMessage={deliveryMessage}
+    publicReleaseId={publicReleaseId} candidateReleaseId={candidateReleaseId}
+    history={history} historyCursor={historyCursor} historyBusy={historyBusy} historyError={historyError} onLoadHistory={() => void loadHistory()}
+    scrollKey={`workshopScroll.${accountScope}.${appId}`}
     onLoadWish={() => void loadWish()}
     onPublish={() => void publishWish()}
     providerId={providerId} onProviderChange={setProviderId} onChange={setRequirement}

@@ -34,7 +34,7 @@ export default function JollyHome() {
       {workspaces.length ? <Text style={styles.name}>应用工坊</Text> : <Text style={styles.caption}>有一个想法，就从上面开始。作品和安装的应用都可以在“我的作品与应用”里管理。</Text>}
       {workspaces.map(item => <WorkspaceRow key={item.appId} item={item} onPress={() => { setTarget(item.appId); context.storage.set("workshopTarget", item.appId); setWorkshop(true); }} />)}
     </ScrollView></Screen></View>
-    {workspaces.map(item => <View key={item.appId} style={{ flex: 1, display: workshop && target === item.appId ? "flex" : "none" }}><Workshop title={item.title} appId={item.appId} originalAppId={item.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (selected.current === item.appId) setWorkshop(true); }} /></View>)}
+    {workspaces.map(item => <View key={item.appId} style={{ flex: 1, display: workshop && target === item.appId ? "flex" : "none" }}><Workshop visible={workshop && target === item.appId} title={item.title} appId={item.appId} originalAppId={item.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (selected.current === item.appId) setWorkshop(true); }} /></View>)}
   </View>;
 }
 function WorkspaceRow({ item, onPress }: { item: Workspace; onPress: () => void }) {

@@ -1,4 +1,5 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { getAppContext } from "@zijinhua/app-sdk";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -55,6 +56,14 @@ type Props = {
   onSubmit: () => void;
   onStop: () => void;
   onBack?: () => void;
+  publicReleaseId?: string;
+  candidateReleaseId?: string;
+  history: AgentTrace[];
+  historyCursor?: string;
+  historyBusy: boolean;
+  historyError: string;
+  onLoadHistory: () => void;
+  scrollKey: string;
 };
 
 type Idea = {
@@ -166,8 +175,12 @@ export const AgentScreen = memo(function AgentScreen({
   onSubmit,
   onStop,
   onBack,
+  publicReleaseId, candidateReleaseId, history, historyCursor, historyBusy, historyError, onLoadHistory, scrollKey,
 }: Props) {
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollTarget = useRef(Number(getAppContext().storage.get(scrollKey)) || 0);
+  const scrollRestored = useRef(scrollTarget.current === 0);
 
   const [companionName, setCompanionName] = useState("狗蛋");
   const [nameInput, setNameInput] = useState("狗蛋");
@@ -304,7 +317,8 @@ export const AgentScreen = memo(function AgentScreen({
   }, [hasSession, stillRunning, traces.length, runningTrace, status, hasError, finalReport]);
 
   const phase: "busy" | "error" | "done" | "idle" = stillRunning ? "busy" : hasError ? "error" : hasSession ? "done" : "idle";
-  const phaseLabel = showDelivery ? versionLoaded ? "可使用" : "待体验" : canContinue ? "可继续修改" : awaitingReply ? "等你回应" : { busy: "制作中", error: "有提示", done: "已完成", idle: "待命" }[phase];
+  const publicCurrent = Boolean(candidateReleaseId && publicReleaseId === candidateReleaseId);
+  const phaseLabel = showDelivery ? publicCurrent ? "已公开" : versionLoaded ? "已打开" : "待体验" : canContinue ? "可继续修改" : awaitingReply ? "需要回应" : { busy: "制作中", error: "需要处理", done: "已完成", idle: "尚未开始" }[phase];
   const phaseTone =
     phase === "busy"
       ? { dot: colors.accent, text: colors.accentText, tint: colors.accentTint }
@@ -331,19 +345,28 @@ export const AgentScreen = memo(function AgentScreen({
       </ScreenBar>
 
       <ScrollView removeClippedSubviews={false}
+        ref={scrollRef}
+        onContentSizeChange={(_, height) => {
+          if (!scrollRestored.current && !sessionLoading && height > scrollTarget.current) {
+            scrollRef.current?.scrollTo({ y: scrollTarget.current, animated: false }); scrollRestored.current = true;
+          }
+        }}
+        onScroll={event => {
+          if (scrollRestored.current) getAppContext().storage.set(scrollKey, String(Math.max(0, event.nativeEvent.contentOffset.y)));
+        }}
+        scrollEventThrottle={200}
         style={styles.fill}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         // 保留视频的原生视图，滚出屏幕后回来时不重建播放表面。
-        removeClippedSubviews={false}
       >
         {sessionId || sessionLoading ? (
           <Surface tone="inset" style={styles.sessionPanel}>
             <View style={styles.sessionSeal}><Icon name="edit" size={16} color={colors.accentText} /></View>
             <View style={styles.heroCopy}>
               <Text style={styles.sessionTitle}>{sessionLoading ? "正在接回你的心愿" : "这一份心愿，我们接着做"}</Text>
-              <Text style={styles.caption}>{showDelivery ? (versionLoaded ? "正在体验这次作品，可以继续修改或上架。" : "代码已完成，正在等待发布或加载。") : awaitingReply ? "伙伴在等你的回应，回复会留在这次制作里。" : "这份作品会接着上次的进度制作，其他作品也可以同时开始。"}</Text>
+              <Text style={styles.caption}>{showDelivery ? (publicCurrent ? "这个版本已公开，后续修改由你决定何时更新市场。" : versionLoaded ? "这个版本已打开，满意后可以发布到市场。" : "这个版本可以体验，体验后再决定是否发布。") : awaitingReply ? "可以在下方继续描述需求，沿用这份作品制作。" : "这份作品会接着上次的进度制作，其他作品也可以同时开始。"}</Text>
             </View>
             {!busy && !showDelivery && !awaitingReply ? (
               <Pressy accessibilityRole="button" disabled={sessionLoading} onPress={onNewSession} style={styles.sessionButton}>
@@ -372,16 +395,16 @@ export const AgentScreen = memo(function AgentScreen({
               <GiltLine style={styles.reportEdge} />
               <View style={styles.reportHead}>
                 <View style={styles.sessionSeal}><Icon name="check" size={17} color={colors.accentText} /></View>
-                <Text style={styles.reportTitle}>作品已经做好了</Text>
+                <Text style={styles.reportTitle}>{publicCurrent ? "这个版本已公开" : "作品可以体验了"}</Text>
               </View>
               <Text style={styles.deliveryPanelText}>可以打开体验，在下方继续提出修改，满意后发布到应用市场。</Text>
               {deliveryMessage ? <Text accessibilityLiveRegion="polite" style={styles.deliveryPanelMessage}>{deliveryMessage}</Text> : null}
               <View style={styles.deliveryPanelActions}>
-                <Pressy accessibilityRole="button" disabled={deliveryBusy} onPress={onLoadWish} style={styles.ghost}>
-                  <Text style={styles.ghostText}>{versionLoaded ? "打开作品" : "体验作品"}</Text>
+                <Pressy accessibilityRole="button" disabled={deliveryBusy || sessionLoading} onPress={onLoadWish} style={styles.primary}>
+                  <Text style={styles.primaryText}>{deliveryBusy ? "正在处理…" : versionLoaded ? "打开作品" : "体验作品"}</Text>
                 </Pressy>
-                <Pressy accessibilityRole="button" disabled={deliveryBusy} onPress={onPublish} style={styles.ghost}>
-                  <Text style={styles.ghostText}>发布到市场</Text>
+                <Pressy accessibilityRole="button" disabled={deliveryBusy || sessionLoading} onPress={onPublish} style={styles.ghost}>
+                  <Text style={styles.ghostText}>{publicCurrent ? "管理公开版本" : publicReleaseId ? "更新市场版本" : "发布到市场"}</Text>
                 </Pressy>
               </View>
               <Text style={styles.deliveryPanelHint}>后续发包不会自动改变市场上的公开版本。</Text>
@@ -544,7 +567,7 @@ export const AgentScreen = memo(function AgentScreen({
                 <Text style={styles.reportTitle}>这次为你做了什么</Text>
               </View>
               <Text style={styles.reportText}>{finalReport}</Text>
-              {!stillRunning && onBack ? (
+              {!stillRunning && !sessionId && onBack ? (
                 <View style={styles.reportActions}>
                   <Pressy accessibilityRole="button" onPress={onBack} style={styles.primary}>
                     <Text style={styles.primaryText}>去体验新应用</Text>
@@ -559,6 +582,12 @@ export const AgentScreen = memo(function AgentScreen({
             </Surface>
           </Animated.View>
         ) : null}
+        {history.length || historyCursor || historyError ? <Surface tone="inset" style={styles.progress}>
+          <Text style={styles.reportTitle}>制作记录</Text>
+          {history.map(item => <View key={item.id} style={styles.detail}><Text style={styles.stepTitle}>{item.title}</Text>{item.detail ? <Text selectable style={styles.detailText}>{item.detail}</Text> : null}</View>)}
+          {historyError ? <><Text accessibilityLiveRegion="polite" style={styles.deliveryPanelMessage}>{historyError}</Text>{!historyCursor ? <Pressy disabled={busy || sessionLoading} onPress={onNewSession} style={styles.ghost}><Text style={styles.ghostText}>重新同步记录</Text></Pressy> : null}</> : null}
+          {historyCursor ? <Pressy disabled={historyBusy} onPress={onLoadHistory} style={styles.ghost}><Text style={styles.ghostText}>{historyBusy ? "正在加载…" : "加载更多制作记录"}</Text></Pressy> : null}
+        </Surface> : null}
 
         {!hasSession ? (
           <Animated.View style={styles.ideas}>
