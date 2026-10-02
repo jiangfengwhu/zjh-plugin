@@ -5,6 +5,7 @@ import type { WorkshopStatus } from "@zijinhua/app-sdk/creation";
 import { AppState } from "react-native";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
 import { RequirementComposer } from "./RequirementComposer";
+import { FeedbackReview, readFeedback, feedbackPrompt, type ApplicationFeedback } from "./FeedbackReview";
 import { noteJollyRun, readJollyRun, syncJollyFeedPost, type JollyPhase, type WorkshopStage } from "./run";
 export default function Workshop({ appId, title, originalAppId, visible, onBack, onShowWorkshop }: { appId: string; title: string; originalAppId?: string; visible: boolean; onBack?: () => void; onShowWorkshop?: () => void }) {
   const context = getAppContext();
@@ -14,6 +15,7 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   const { runCloudEvolve, cancelCloudRun, loadJulesRun, loadJulesSession, saveJulesRun, clearJulesRun, clearJulesSession, inspectJulesSession, julesSessionLive, watchJulesSession, workshopStatus, applyPackageUpdates, openPublication } = service;
   const pluginsReady = true;
   const [requirement, setRequirement] = useState("");
+  const [feedback, setFeedback] = useState<ApplicationFeedback>();
   const [prompt, updatePrompt] = useState("");
   const [status, updateStatus] = useState("");
   const [report, setReport] = useState("");
@@ -109,7 +111,9 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
       const prompt = context.storage.get(`pendingPrompt.${appId}`);
       if (prompt) { setRequirement(prompt); context.storage.set(`pendingPrompt.${appId}`, ""); }
     };
-    accept(); return context.storage.subscribe(`pendingPrompt.${appId}`, accept);
+    const acceptFeedback = () => setFeedback(readFeedback(context.storage.get(`pendingFeedback.${appId}`)));
+    accept(); acceptFeedback(); const offPrompt = context.storage.subscribe(`pendingPrompt.${appId}`, accept); const offFeedback = context.storage.subscribe(`pendingFeedback.${appId}`, acceptFeedback);
+    return () => { offPrompt(); offFeedback(); };
   }, []);
   async function stop() {
     const cloud = cloudRun.current;
@@ -243,6 +247,7 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
         onTrace: setTraces,
         onRunId: (runId) => {
           context.storage.remove(`requirementDraft.${appId}`);
+          context.storage.remove(`pendingFeedback.${appId}`);
           setSessionId(runId);
           cloudRun.current = { runId };
           saveJulesRun({ session: runId, prompt: wish, startedAt });
@@ -447,7 +452,10 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   }
 
   return <AgentScreen
-    preparation={!sessionId && !busy ? <RequirementComposer key={`${accountScope}.${appId}`} appId={appId} value={requirement} onChange={setRequirement} disabled={sessionLoading || updateBusy} visible={visible} onStart={(text, original, preparedTitle) => {
+    preparation={feedback && !busy ? <FeedbackReview value={feedback} owned={feedback.appId === appId} disabled={sessionLoading || updateBusy || Boolean(sessionId && !awaitingReply && !canContinue)} onChange={body => context.storage.set(`pendingFeedback.${appId}`, JSON.stringify({ ...feedback, body }))} onDiscard={() => context.storage.remove(`pendingFeedback.${appId}`)} onConfirm={() => {
+      if (busyRef.current || sessionLoading || updateBusy || detached.current || !visibleRef.current || context.storage.get("__accountScope") !== accountScope || (sessionId && !awaitingReply && !canContinue)) return;
+      const text = feedbackPrompt(feedback); setRequirement(text); void runCloud(text, "正在提交修改反馈", feedback.body, feedback.appId !== appId ? `基于${feedback.title}` : undefined);
+    }} /> : !sessionId && !busy ? <RequirementComposer key={`${accountScope}.${appId}`} appId={appId} value={requirement} onChange={setRequirement} disabled={sessionLoading || updateBusy} visible={visible} onStart={(text, original, preparedTitle) => {
       if (busyRef.current || sessionLoading || updateBusy || detached.current || context.storage.get("__accountScope") !== accountScope) return;
       void runCloud(text, "正在生成", original, preparedTitle);
     }} /> : undefined}
