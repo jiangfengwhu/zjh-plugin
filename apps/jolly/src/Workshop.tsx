@@ -206,13 +206,13 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
     console.log("app error", where, detail.trim().slice(0, 4000));
   }
 
-  async function runCloud(text: string, status = "正在生成") {
+  async function runCloud(text: string, status = "正在生成", original = text, preparedTitle?: string) {
     busyRef.current = true;
     setBusy(true);
     // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。
     const continuing = sessionId && !canContinue;
     const startedAt = continuing && runStartedAt > 0 ? runStartedAt : Date.now();
-    const wish = continuing && prompt.trim() ? prompt : text;
+    const wish = continuing && prompt.trim() ? prompt : original;
     setCanContinue(false);
     setShowDelivery(false);
     setDeliveryStage("making");
@@ -220,8 +220,9 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
     if (title === "新应用" || title === "未命名作品") {
       const workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
       const workspace = workspaces.find((item: { appId: string }) => item.appId === appId);
-      if (workspace) { workspace.title = text.replace(/\s+/g, " ").slice(0, 20); context.storage.set("workspaces", JSON.stringify(workspaces)); }
+      if (workspace) { workspace.title = (preparedTitle || original).replace(/\s+/g, " ").slice(0, 20); context.storage.set("workspaces", JSON.stringify(workspaces)); }
     }
+    if (preparedTitle) setTargetTitle(preparedTitle);
     setRunStartedAt(startedAt);
     setPrompt(wish);
     setWorkshopPhase("making");
@@ -446,9 +447,9 @@ export default function Workshop({ appId, title, originalAppId, visible, onBack,
   }
 
   return <AgentScreen
-    preparation={!sessionId && !busy ? <RequirementComposer key={`${accountScope}.${appId}`} appId={appId} value={requirement} onChange={setRequirement} disabled={sessionLoading || updateBusy} visible={visible} onStart={text => {
+    preparation={!sessionId && !busy ? <RequirementComposer key={`${accountScope}.${appId}`} appId={appId} value={requirement} onChange={setRequirement} disabled={sessionLoading || updateBusy} visible={visible} onStart={(text, original, preparedTitle) => {
       if (busyRef.current || sessionLoading || updateBusy || detached.current || context.storage.get("__accountScope") !== accountScope) return;
-      void runCloud(text);
+      void runCloud(text, "正在生成", original, preparedTitle);
     }} /> : undefined}
     canContinue={canContinue} targetTitle={targetTitle}
     value={requirement} prompt={prompt} status={status} busy={busy} traces={traces} report={report}

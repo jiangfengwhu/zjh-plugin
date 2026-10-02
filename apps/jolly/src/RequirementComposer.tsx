@@ -27,7 +27,7 @@ function parseResult(text: string): { question?: Question; draft?: Draft } {
   return { draft: { title: string(value.title, 80), purpose: string(value.purpose, 1000), features: lines(value.features, true), excluded: lines(value.excluded), acceptance: lines(value.acceptance, true), suggestions: lines(value.suggestions) } };
 }
 
-export function RequirementComposer({ appId, value, onChange, disabled, visible, onStart }: { appId: string; value: string; onChange: (value: string) => void; disabled: boolean; visible: boolean; onStart: (prompt: string) => void }) {
+export function RequirementComposer({ appId, value, onChange, disabled, visible, onStart }: { appId: string; value: string; onChange: (value: string) => void; disabled: boolean; visible: boolean; onStart: (prompt: string, original: string, title?: string) => void }) {
   const context = getAppContext(); const { colors } = useTheme();
   const [scope] = useState(() => context.storage.get("__accountScope")); const key = `requirementDraft.${appId}`;
   const [saved] = useState<Preparation | undefined>(() => { try {
@@ -76,8 +76,8 @@ export function RequirementComposer({ appId, value, onChange, disabled, visible,
     const draft = preparation.draft;
     if (!raw && draft && (!draft.title.trim() || !draft.purpose.trim() || !draft.features.trim() || !draft.acceptance.trim())) { setError("请补全名称、用途、首版功能和完成标准"); return; }
     const original = preparation.original.trim(); if (!original) return;
-    const text = raw || !draft ? original : `用户原始想法：\n${original}\n\n以下是用户已确认的首版需求，以此为实现范围：\n应用名称：${draft.title}\n用途：${draft.purpose}\n首版功能：\n${draft.features}\n暂不包含：\n${draft.excluded || "无额外排除项"}\n完成标准：\n${draft.acceptance}\n不要将未确认的 AI 建议自动加入首版。`;
-    onStart(text);
+    const text = raw || !draft ? original : `${draft.title}\n\n用户原始想法：\n${original}\n\n以下是用户已确认的首版需求，以此为实现范围：\n应用名称：${draft.title}\n用途：${draft.purpose}\n首版功能：\n${draft.features}\n暂不包含：\n${draft.excluded || "无额外排除项"}\n完成标准：\n${draft.acceptance}\n不要将未确认的 AI 建议自动加入首版。`;
+    onStart(text, original, raw ? undefined : draft?.title);
   }
   const locked = disabled || busy;
   return <Surface style={styles.card}>
