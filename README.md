@@ -1,25 +1,13 @@
 # zjh-plugin
 
-紫金花应用源码仓库。所有应用通过目录管理，main 仅维护官方应用；用户应用沿用 Jules 自动创建的独立分支持续迭代和发包，无需同步或合入 main。模板位于 templates/basic。
+紫金花应用源码仓库：apps/<id>/ 按应用管理，apps/jolly 是默认安装的伙伴与工坊，templates/basic 是新应用模板。SDK、RN 宿主与构建工具由 zjh-dynamic 维护。
 
-- apps/jolly：默认安装的伙伴与工坊。
-- apps/notepad：记事本。
-- apps/pomodoro：番茄钟。
-- templates/basic：新应用模板。
+使用 Node.js >=22.11.0，在仓库根目录运行 npm ci。根依赖和锁文件固定 SDK，应用接入、公开能力及依赖规则见安装包 node_modules/@zijinhua/app-sdk/README.md，共享库清单在其 dist/libraries.md。
 
-使用 Node.js 22.11 以上，运行 npm ci。SDK、工具链与依赖由 package-lock.json 固定；目前 SDK 以 CDN 上不可变 npm tarball 安装，公开 npm registry 发布后再切换依赖地址。
+| 命令 | 用途 |
+| --- | --- |
+| npm run init:application -- <id> | 用模板和平台分配的模块范围初始化应用，需要发布授权 |
+| npm run build:application -- <id> | 仅构建，产物在 dist/applications/<id>/ |
+| npm run publish:application -- <id> | 自动构建并发布候选，不自动上架 |
 
-新增应用：npm run init:application -- <id>。页面入口在 apps/<id>/src/index.ts，媒体在 assets/。只使用 SDK 公开 API；纯 JS 依赖声明在对应应用 package.json，并更新根锁文件。不要引用宿主或其他应用源码。
-
-提交全部源码后运行 npm run publish:application -- <id>，发布独立 Hermes 包和媒体。发布检查依赖兼容性、源码提交基线、模块范围。产物在 dist/applications/<id>/，不提交 Git。
-
-AI Coding 输入为本文件、AGENTS.md、目标应用、SDK 公开类型、SDK platform.json、模板及根锁文件；不需要访问 SDK/Android/server 仓库。
-SDK、宿主和工具由 jiangfengwhu/zjh-dynamic 维护。新增原生能力、共享依赖升级与 SDK 契约变更交给平台维护者。
-
-Jolly 的主页在 apps/jolly/src/Home.tsx，工坊是它内部的页面。应用市场由平台维护；新创作的应用不会自动公开上架。
-
-每个应用在 Jolly 中保存独立 session 与制作进度，工坊记录按账号分开，重新登录可从服务端接回作品。不同应用可并行，默认每账号同时 3 个、每天 10 轮；同一应用同时只允许一次编辑，本轮完成后直接继续原 session。模块范围由服务端预留；Remix 从原应用分支 checkout，创建新应用和 owner。开发阶段自动打包候选，开发者自行决定是否上架；后续制作和发包保留原公开版本，主动上架新版本才替换。当前不做审核，未来 AI 恶意代码检测另行建设。
-
-根 package.json 仅声明 SDK，React、RN、公开第三方 RN 库、React 类型和 TypeScript 的精确版本统一由 SDK 管理。各应用 package.json 声明 workspace 身份和自己的纯 JS 依赖，不重复声明平台依赖，也不保留重复应用版本。构建会校验实际解析版本并拒绝共享依赖覆盖。
-
-工坊按作品名称展示制作、回复、待体验、可使用等状态；制作完成后名称同步应用清单。分享由平台的“我的作品与应用”管理，更新公开版本、编辑展示信息和撤回分享都是独立操作。
+云端任务读取 [AGENTS.md](AGENTS.md)、目标应用、模板、锁文件及安装 SDK 的文档和公共类型，无需访问其他仓库。分支、任务范围和交付要求统一维护在 AGENTS.md。

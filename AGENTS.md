@@ -1,33 +1,13 @@
-# 云端应用制作
+# 云端应用 Agent
 
-唯一开放仓库为 jiangfengwhu/zjh-plugin，不访问或克隆 SDK、Android、server 或旧单体仓库。main 只由维护者管理官方应用、模板和公共工具；用户应用一直在 Jules 自动创建的专属分支迭代，不同步 main，不合入 main。
+只在 zjh-plugin 完成任务，不访问 SDK、Android 或 server 仓库。API、依赖、资源、授权及打包规则以已安装 SDK 的 README.md、dist/platform.json、dist/libraries.md 和公共类型为准；分支与交付规则以本文件为准。
 
-## 实现
+1. npm ci 安装当前分支锁定的 SDK；先读目标应用和 SDK 文档，不虚构 API。工具不兼容时保留源码，向维护者说明所需升级，不自行换 SDK 或同步 main。
+2. 使用任务给定的应用 ID、模块范围与本轮授权。新应用按 SDK 流程 init，已有应用直接修改。只改 apps/<id>/ 和必要的根 package-lock.json，不修改其他应用、模板或平台。
+3. 用户应用沿用 Jules 自动创建的专属分支；继续制作时使用平台给定的分支。不合入或同步 main，不为每轮新建分支或 PR。main 的官方应用与模板由维护者管理。
+4. 完成后提交全部源码及依赖锁文件，保持仓库干净，运行 npm run publish:application -- <id>。必须实际发布候选，不能以构建或 PR 代替交付；上传与清单写入成功后才报告发布成功。
+5. 授权缺失、过期、基线冲突或兼容失败时保留源码并报告原因，不绕过发布保护。默认不单独运行类型检查、测试或预览，发布必需的构建与兼容检查仍执行。
 
-先阅读目标应用代码，保留应用 ID、数据键和模块范围。一次心愿只修改 apps/<目标id>/ 与必要的根 package-lock.json；SDK 升级可以更新根 package.json 中 @zijinhua/app-sdk 的版本。不要修改其他应用或平台。
+Remix 使用新 appId 和模块范围，init 从任务锁定的原作提交复制源码；不要修改原作者应用或改用 main 的新版。
 
-新应用执行 npm run init:application -- <id>，moduleBase 由平台分配，不自行扫描或改范围。src/index.ts 默认导出 SDK defineApp。main 页面延迟加载，avatar/cards 按需登记。application.json 填写面向用户的 title、summary、mark、accent，不以 appId 命名。
-
-先阅读安装 SDK 内 dist/libraries.md 的完整库清单、示例、Provider 规则和应用能力。剪贴板、触觉反馈、文件、应用凭证和全局提示均已提供；不要手写已有库的原生桥。宿主运行支撑依赖通过其上层库使用。
-
-只导入 @zijinhua/app-sdk、/ui、/creation 与 platform.json 公开共享入口。制作服务仅授权 Jolly。存储、动态、导航、手机能力和资源通过 getAppContext() 获取，不导入宿主或其他应用源码，不虚构 API、硬编码或输出凭证。共享原生依赖由 SDK 精确安装；额外纯 JS 库声明在应用 package.json，更新根锁文件。新的原生能力交维护者协调。应用 package.json 只保留 name/private 与自己的纯 JS 依赖，版本在 application.json 维护。
-
-AI 功能统一使用 getAppContext().ai：listProviders() 读取非敏感模型信息，complete({messages, providerId?, temperature?, maxTokens?}) 使用用户在宿主我的页面配置的模型，openSettings() 只在用户点击配置入口时打开设置。默认模型无需传 providerId。不要新增 API Key 输入页、保存平台模型凭证、调用宿主私有 AI 接口或自行读取密钥。展示请求 loading，保留原输入，处理返回的 ok/code/error；未配置时提供配置入口或非 AI 路径，不自动重试和重复消耗额度。首版为非流式文本，离开页面后忽略过期响应。完整类型与示例查看安装 SDK 的 README.md，所需宿主 API 1.3.0。
-
-## 分支与发布
-
-1. npm ci 安装当前分支锁定的 SDK。使用 SDK 1.2.0 或更新版本；已有分支如工具过旧，按平台提示升级 SDK，无需同步 main。默认不单独执行类型检查、测试或预览，打包所需构建与运行时兼容检查继续执行。
-2. 后续需求继续 checkout 平台记录的应用分支，保留既有修改；不为每轮创建新的分支或 PR。Jules 自动导出的 PR 只是分支信息，不是交付条件，不要求审查或合并。
-3. 完成源码后先提交全部改动，确保 git status 干净。
-4. 用本轮平台授权执行 zjh-app authorize <id> '<grant>'；授权只存 Git 元数据，不输出或提交。运行 npm run publish:application -- <id> 自动构建并发布候选，不以 build 代替发布，不改工具绕过错误。
-5. 上传及清单写入成功后才报告“候选已发布，可以体验、继续修改或上架”。作者自行决定是否上架。候选和公开指针独立，更新候选不影响旧公开版本。
-
-source.repository 为 jiangfengwhu/zjh-plugin，source.commit/tree 记录真实源码，source.dirty=false。应用无需检查 main 或 PR 提交基线；服务端以本轮授权和 expectedReleases 原子比较防止旧任务覆盖新候选。409 时先接回最新状态，不强推或直接覆盖存储。
-
-平台为每个应用绑定作者和一个 Jules session；同一应用同一时间仅进行一轮制作，多设备共用服务端状态，不另开会话绕过锁。不同应用可并行。授权缺失、过期或轮次失效时保留代码并报告阻塞。不得使用共享 R2、BUNDLE_CATALOG_TOKEN、OFFICIAL_PUBLISH_TOKEN、Wrangler、管理权限或官方 release 接口。
-
-## Remix
-
-平台创建新 appId、模块范围、作者归属和独立分支，从原作对应分支开始。init 读取锁定的 originalCommit 复制原作 src/assets 和纯 JS 依赖，保留新 appId/moduleBase，记录 originalAppId/originalReleaseId/originalCommit。不得在原作者分支上编辑，也不改用 main 的源码。早期不要求数据迁移，开发阶段不做市场审核。
-
-最后用中文说明实现、实际发布结果和剩余限制。跨仓库需求说明所需 API，由维护者处理。
+不得输出或提交授权、使用全局管理凭据、调用官方公开发布接口或擅自合入 PR。候选不会自动上架，由作者决定公开版本。最后用中文说明改动、实际发布结果和未完成事项。
