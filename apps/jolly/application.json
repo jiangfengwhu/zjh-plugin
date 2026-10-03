@@ -1,10 +1,10 @@
 {
   "appId": "jolly",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "title": "Jolly",
   "summary": "把一句心愿做成可以打开的小应用。",
   "mark": "乔",
-  "accent": "#E0B785",
+  "accent": "#F2A38F",
   "dataSchemaVersion": 1,
   "moduleBase": 2000000
 }
