@@ -35,10 +35,10 @@ export default function JollyHome() {
     return () => subscription.remove();
   }, [workshop, focused]);
   return <View style={{ flex: 1 }}>
-    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar><FlatList data={workspaces} keyExtractor={item => item.appId} initialNumToRender={8} windowSize={7} contentContainerStyle={styles.content} ListHeaderComponent={<View style={{ gap: 20 }}>
-      <View style={styles.hero}><JollyPortrait size={132} animated={focused && !workshop} borderRadius={38} /><Text style={styles.title}>你好，我是 Jolly</Text><Text style={styles.caption}>每个应用都有自己的心愿工坊，可以同时制作。</Text></View>
-      <Pressy accessibilityRole="button" onPress={() => context.navigation.create()}><Surface tone="raised" radius={24} style={styles.workshop}><Icon name="plus" size={25} color={colors.accent} /><View style={{ flex: 1, gap: 5 }}><Text style={styles.name}>创作新应用</Text><Text style={styles.copy}>说说心愿，让 Jolly 帮你实现</Text></View><Icon name="chevron" size={18} color={colors.ink3} /></Surface></Pressy>
-      {workspaces.length ? <Text style={styles.name}>应用工坊</Text> : <Text style={styles.caption}>有一个想法，就从上面开始。作品和安装的应用都可以在“我的作品与应用”里管理。</Text>}
+    <View style={{ flex: 1, display: workshop ? "none" : "flex" }}><Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={context.navigation.back} /><Text style={styles.headerTitle}>Jolly</Text></ScreenBar><FlatList data={workspaces} keyExtractor={item => item.appId} initialNumToRender={8} windowSize={7} contentContainerStyle={styles.content} ListHeaderComponent={<View style={{ gap: 12 }}>
+      <View style={styles.hero}><JollyPortrait size={48} animated={focused && !workshop} borderRadius={12} /><View style={{ flex: 1, gap: 4 }}><Text style={styles.title}>把想法做成小应用</Text><Text style={styles.caption}>从一句话开始，一起慢慢完善。</Text></View></View>
+      <Pressy accessibilityRole="button" onPress={() => context.navigation.create()}><View style={[styles.workshop, { backgroundColor: colors.accentTint, borderRadius: 10 }]}><Icon name="plus" size={20} color={colors.accent} /><View style={{ flex: 1, gap: 3 }}><Text style={styles.name}>创作新应用</Text><Text style={styles.copy}>说说你想解决的一件小事</Text></View><Icon name="chevron" size={16} color={colors.ink3} /></View></Pressy>
+      {workspaces.length ? <Text style={styles.caption}>最近制作</Text> : <Text style={styles.caption}>还没有作品。先说一个小想法，我来帮你整理。</Text>}
       </View>} renderItem={({ item }) => <WorkspaceRow item={item} onPress={() => { setTarget(item.appId); context.storage.set("workshopTarget", item.appId); setWorkshop(true); }} />} /></Screen></View>
     {currentWorkspace && (workshop || opened) ? <View key={`${scope}.${currentWorkspace.appId}`} style={{ flex: 1, display: workshop ? "flex" : "none" }}><Workshop visible={focused && workshop} title={currentWorkspace.title} appId={currentWorkspace.appId} originalAppId={currentWorkspace.originalAppId} onBack={() => setWorkshop(false)} onShowWorkshop={() => { if (focused && selected.current === currentWorkspace.appId) setWorkshop(true); }} /></View> : null}
   </View>;
@@ -51,6 +51,18 @@ function WorkspaceRow({ item, onPress }: { item: Workspace; onPress: () => void 
   const [sharing, setSharing] = useState(readSharing);
   useEffect(() => context.storage.subscribe(`sharing.${item.appId}`, () => setSharing(readSharing())), [item.appId]);
   const label = run.stage ? workshopStageLabels[run.stage] : "尚未开始";
-  return <Pressy accessibilityRole="button" onPress={onPress}><Surface radius={20} style={styles.progress}><Text style={styles.name}>{item.title}</Text><Text style={styles.copy}>{run.wish || "说说想做什么"}</Text><Text style={styles.caption}>{label}{sharing.releaseId ? sharing.hasUpdate ? " · 有新版本待分享" : " · 已分享" : " · 未分享"}</Text></Surface></Pressy>;
+  return <Pressy accessibilityRole="button" onPress={onPress}><View style={styles.progress}><View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Text style={[styles.name, { flex: 1 }]} numberOfLines={1}>{item.title}</Text><Icon name="chevron" size={16} /></View><Text style={styles.copy} numberOfLines={1}>{run.wish || "说说想做什么"}</Text><Text style={styles.caption}>{label}{sharing.releaseId ? sharing.hasUpdate ? " · 有新版本待分享" : " · 已分享" : " · 未分享"}</Text></View></Pressy>;
 }
-const styles = themedStyleSheet(t => ({ screen: { flex: 1, backgroundColor: t.canvas }, header: { padding: 20, gap: 12, flexDirection: "row", alignItems: "center" }, headerTitle: { color: t.ink1, fontSize: 18, fontWeight: "600" }, content: { padding: 24, paddingBottom: 40, gap: 20 }, hero: { alignItems: "center", gap: 14, paddingVertical: 14 }, title: { fontFamily: t.serif, fontSize: 28, color: t.ink1, fontWeight: "700" }, caption: { color: t.ink3, fontSize: 13, lineHeight: 20 }, workshop: { padding: 20, flexDirection: "row", gap: 15, alignItems: "center" }, name: { color: t.ink1, fontSize: 18, fontWeight: "600" }, copy: { color: t.ink2, fontSize: 14, lineHeight: 22 }, progress: { padding: 20, gap: 9 } }));
+const styles = themedStyleSheet(t => ({
+  screen: { flex: 1, backgroundColor: t.canvas },
+  header: { paddingHorizontal: 12, paddingVertical: 2, gap: 8, flexDirection: "row", alignItems: "center", borderBottomWidth: 0.5, borderBottomColor: t.line },
+  headerTitle: { color: t.ink1, fontSize: 19, fontWeight: "600" },
+  content: { padding: 16, paddingBottom: 16, gap: 8 },
+  hero: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  title: { fontSize: 17, color: t.ink1, fontWeight: "600" },
+  caption: { color: t.ink3, fontSize: 12, lineHeight: 18 },
+  workshop: { minHeight: 64, padding: 12, flexDirection: "row", gap: 10, alignItems: "center" },
+  name: { color: t.ink1, fontSize: 15, fontWeight: "600" },
+  copy: { color: t.ink2, fontSize: 14, lineHeight: 20 },
+  progress: { paddingVertical: 12, gap: 4, borderBottomWidth: 0.5, borderBottomColor: t.line },
+}));

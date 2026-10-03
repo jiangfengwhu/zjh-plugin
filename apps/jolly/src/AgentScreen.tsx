@@ -329,9 +329,9 @@ export const AgentScreen = memo(function AgentScreen({
       <ScreenBar style={styles.header}>
         {onBack ? <BackChip onPress={onBack} /> : null}
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>工坊</Text>
+          <Text style={styles.title} numberOfLines={1}>{targetTitle}</Text>
           <Text style={styles.caption} numberOfLines={1}>
-            {companionName} · {targetTitle}
+            和 {companionName} 一起制作
           </Text>
         </View>
         <View style={[styles.phase, { backgroundColor: phaseTone.tint }]}>
@@ -409,7 +409,7 @@ export const AgentScreen = memo(function AgentScreen({
         {hasSession ? (
           <View style={styles.compactHero}>
             <View style={styles.portraitSmall}>
-              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={64} height={64} borderRadius={20} resizeMode="cover" />
+              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={44} height={44} borderRadius={12} resizeMode="cover" />
             </View>
             <View style={styles.heroCopy}>
               <Pressy accessibilityRole="button" accessibilityLabel="修改昵称" onPress={openNameEditor} scale={0.97} style={styles.nameRow}>
@@ -424,13 +424,12 @@ export const AgentScreen = memo(function AgentScreen({
         ) : (
           <Animated.View style={styles.stage}>
             <View style={styles.portraitLarge}>
-              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={124} height={124} borderRadius={38} resizeMode="cover" />
+              <JollyVideoPlayer state={jollyLiveState} still={!visible} width={48} height={48} borderRadius={12} resizeMode="cover" />
             </View>
-            <Text style={styles.stageTitle}>今天想做点什么？</Text>
-            <Text style={styles.stageBody}>写下一个念头，{companionName} 会把它做成可以打开的小应用。</Text>
+            <View style={{ flex: 1, gap: 4 }}><Text style={styles.stageTitle}>从一句想法开始</Text>
+            <Text style={styles.stageBody}>先一起整理，确认后再制作。</Text></View>
             <Pressy accessibilityRole="button" onPress={openNameEditor} scale={0.95} style={styles.renameChip}>
               <Icon name="edit" size={14} color={colors.ink3} />
-              <Text style={styles.renameText}>给它改个名字</Text>
             </Pressy>
           </Animated.View>
         )}
@@ -723,8 +722,8 @@ const styles = themedStyleSheet((t) => ({
     justifyContent: "center",
   },
   deliveryPanel: {
-    padding: 18,
-    gap: 14,
+    padding: 16,
+    gap: 12,
     overflow: "hidden",
   },
   deliveryPanelText: { color: t.ink2, fontSize: 14, lineHeight: 22 },
@@ -764,11 +763,13 @@ const styles = themedStyleSheet((t) => ({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 12,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 2,
+    paddingBottom: 2,
     backgroundColor: t.canvas,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: t.line,
   },
   headerCopy: {
     flex: 1,
@@ -777,11 +778,11 @@ const styles = themedStyleSheet((t) => ({
   },
   title: {
     fontFamily: t.serif,
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "700",
     color: t.ink1,
-    letterSpacing: 2,
+    letterSpacing: 0,
   },
   caption: {
     fontSize: 12.5,
@@ -806,40 +807,41 @@ const styles = themedStyleSheet((t) => ({
     fontWeight: "600",
   },
   content: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingTop: 4,
-    paddingBottom: 24,
-    gap: 14,
+    paddingBottom: 12,
+    gap: 12,
   },
   stage: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 8,
     gap: 10,
   },
   portraitLarge: {
-    width: 128,
-    height: 128,
-    borderRadius: 40,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: t.accentSoft,
     backgroundColor: t.surface,
-    marginBottom: 6,
+    marginBottom: 0,
   },
   stageTitle: {
     fontFamily: t.serif,
-    fontSize: 26,
-    lineHeight: 34,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "700",
     color: t.ink1,
-    letterSpacing: 1,
+    letterSpacing: 0,
   },
   stageBody: {
     maxWidth: 280,
     fontSize: 14.5,
     lineHeight: 22,
-    textAlign: "center",
+    textAlign: "left",
     color: t.ink3,
   },
   renameChip: {
@@ -856,17 +858,17 @@ const styles = themedStyleSheet((t) => ({
   compactHero: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
     paddingTop: 4,
   },
   portraitSmall: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: t.accentSoft,
     backgroundColor: t.surface,
   },
@@ -925,7 +927,7 @@ const styles = themedStyleSheet((t) => ({
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   glyph: {
     width: 30,
@@ -987,7 +989,7 @@ const styles = themedStyleSheet((t) => ({
   },
   steps: {
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: t.line,
   },
@@ -1049,7 +1051,7 @@ const styles = themedStyleSheet((t) => ({
     color: t.ink2,
   },
   report: {
-    padding: 18,
+    padding: 16,
     gap: 12,
   },
   reportEdge: {
@@ -1102,7 +1104,7 @@ const styles = themedStyleSheet((t) => ({
   },
   ghost: {
     height: 46,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: t.radius.lg,
     alignItems: "center",
     justifyContent: "center",
@@ -1175,7 +1177,7 @@ const styles = themedStyleSheet((t) => ({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: 16,
     backgroundColor: "rgba(8, 5, 12, 0.6)",
   },
   modalWrap: {
@@ -1183,7 +1185,7 @@ const styles = themedStyleSheet((t) => ({
     maxWidth: 360,
   },
   modalCard: {
-    padding: 22,
+    padding: 16,
     gap: 8,
   },
   modalTitle: {
