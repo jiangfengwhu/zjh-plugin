@@ -5,7 +5,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { getAppContext } from "@zijinhua/app-sdk";
 import {
   Screen,
-  ScreenBar,
   PageHeader,
   Surface,
   Pressy,
@@ -130,17 +129,15 @@ export default function EditorScreen() {
   return (
     // @ts-ignore
     <Screen edges={["bottom", "left", "right"]} style={{ backgroundColor: colors.canvas }}>
-      <ScreenBar>
-        <PageHeader
-          title={id ? "编辑日记" : "新建日记"}
-          onBack={handleGoBack}
-          right={
-            <Pressy onPress={handleSave} style={{ padding: 8 }}>
-              <Text style={{ color: colors.accent, fontSize: 16, fontWeight: "600" }}>保存</Text>
-            </Pressy>
-          }
-        />
-      </ScreenBar>
+      <PageHeader
+        title={id ? "编辑日记" : "新建日记"}
+        onBack={handleGoBack}
+        right={
+          <Pressy onPress={handleSave} style={{ padding: 8 }}>
+            <Text style={{ color: colors.accent, fontSize: 16, fontWeight: "600" }}>保存</Text>
+          </Pressy>
+        }
+      />
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <View style={{ marginBottom: 16 }}>

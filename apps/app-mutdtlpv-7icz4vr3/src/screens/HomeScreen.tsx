@@ -6,7 +6,6 @@ import { Search, Plus, Trash2, Calendar, Smile } from "lucide-react-native";
 import { getAppContext } from "@zijinhua/app-sdk";
 import {
   Screen,
-  ScreenBar,
   PageHeader,
   Surface,
   Pressy,
@@ -128,17 +127,15 @@ export default function HomeScreen() {
   return (
     // @ts-ignore
     <Screen edges={["bottom", "left", "right"]} style={{ backgroundColor: colors.canvas }}>
-      <ScreenBar>
-        <PageHeader
-          title="日记本"
-          onBack={() => ctx.navigation.back()}
-          right={
-            <Pressy onPress={handleExport} style={{ padding: 8 }}>
-              <Text style={{ color: colors.accent, fontSize: 16 }}>导出</Text>
-            </Pressy>
-          }
-        />
-      </ScreenBar>
+      <PageHeader
+        title="日记本"
+        onBack={() => ctx.navigation.back()}
+        right={
+          <Pressy onPress={handleExport} style={{ padding: 8 }}>
+            <Text style={{ color: colors.accent, fontSize: 16 }}>导出</Text>
+          </Pressy>
+        }
+      />
 
       <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
         <View
