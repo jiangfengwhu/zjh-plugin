@@ -1,0 +1,10 @@
+{
+  "title": "日记本应用",
+  "summary": "简洁、私密的数字日记记录工具，支持快速撰写、管理与回顾个人日常记录",
+  "mark": "记",
+  "accent": "#7A5BD0",
+  "appId": "app-mutdtlpv-7icz4vr3",
+  "version": "1.0.0",
+  "dataSchemaVersion": 1,
+  "moduleBase": 2800000
+}
