@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, ScrollView, Alert } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { getAppContext } from "@zijinhua/app-sdk";
 import {
   Screen,
@@ -28,18 +26,14 @@ function getTodayString() {
   return `${year}-${month}-${day}`;
 }
 
-type RootStackParamList = {
-  Home: undefined;
-  Editor: { id?: string };
+type Props = {
+  id?: string;
+  onGoBack: () => void;
 };
 
-export default function EditorScreen() {
-  const route = useRoute<any>();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+export default function EditorScreen({ id, onGoBack }: Props) {
   const ctx = getAppContext();
   const { colors } = useTheme();
-
-  const id = route.params?.id as string | undefined;
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(getTodayString());
@@ -113,17 +107,15 @@ export default function EditorScreen() {
     });
 
     store.clearDraft(draftKey);
-    ctx.toast.show("日记已保存", "success");
-    navigation.goBack();
+    ctx.toast.show("日记已保存", "success" as any);
+    onGoBack();
   };
 
-  const handleGoBack = () => {
+  const handleGoBackPress = () => {
     if (title.trim() || body.trim()) {
-      // It will auto save draft on unmount technically or by interval,
-      // but let's save immediately just in case
       store.saveDraft(draftKey, { title, body, mood, date });
     }
-    navigation.goBack();
+    onGoBack();
   };
 
   return (
@@ -131,7 +123,7 @@ export default function EditorScreen() {
     <Screen edges={["bottom", "left", "right"]} style={{ backgroundColor: colors.canvas }}>
       <PageHeader
         title={id ? "编辑日记" : "新建日记"}
-        onBack={handleGoBack}
+        onBack={handleGoBackPress}
         right={
           <Pressy onPress={handleSave} style={{ padding: 8 }}>
             <Text style={{ color: colors.accent, fontSize: 16, fontWeight: "600" }}>保存</Text>
@@ -146,7 +138,7 @@ export default function EditorScreen() {
               fontSize: 24,
               fontWeight: "bold",
               color: colors.text,
-              padding: 0, // remove default padding on android
+              padding: 0,
             }}
             placeholder="标题（可选）"
             placeholderTextColor={colors.muted}

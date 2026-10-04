@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, FlatList, Alert } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Search, Plus, Trash2, Calendar, Smile } from "lucide-react-native";
 import { getAppContext } from "@zijinhua/app-sdk";
 import {
@@ -10,28 +8,22 @@ import {
   Surface,
   Pressy,
   useTheme,
-  Icon,
 } from "@zijinhua/app-sdk/ui";
 import { store, DiaryEntry } from "../store";
 
-type RootStackParamList = {
-  Home: undefined;
-  Editor: { id?: string };
+type Props = {
+  onNavigateToEditor: (id?: string) => void;
 };
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, "Home">;
-
-export default function HomeScreen() {
+export default function HomeScreen({ onNavigateToEditor }: Props) {
   const [diaries, setDiaries] = useState<DiaryEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const navigation = useNavigation<NavigationProp>();
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
   const ctx = getAppContext();
 
   useEffect(() => {
     const loadDiaries = () => {
       const data = store.getDiaries();
-      // Sort by date descending (and then by createdAt as fallback)
       data.sort((a, b) => {
         const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
         if (dateDiff === 0) {
@@ -66,7 +58,7 @@ export default function HomeScreen() {
         style: "destructive",
         onPress: () => {
           store.deleteDiary(id);
-          ctx.toast.show("日记已删除", "success");
+          ctx.toast.show("日记已删除", "success" as any);
         },
       },
     ]);
@@ -74,15 +66,15 @@ export default function HomeScreen() {
 
   const handleExport = async () => {
     if (diaries.length === 0) {
-      ctx.toast.show("没有可以导出的日记", "info");
+      ctx.toast.show("没有可以导出的日记", "info" as any);
       return;
     }
     try {
       const exportData = JSON.stringify(diaries, null, 2);
       await ctx.clipboard.set(exportData);
-      ctx.toast.show("已将所有日记数据复制到剪贴板", "success");
+      ctx.toast.show("已将所有日记数据复制到剪贴板", "success" as any);
     } catch (e) {
-      ctx.toast.show("导出失败", "error");
+      ctx.toast.show("导出失败", "error" as any);
     }
   };
 
@@ -91,7 +83,7 @@ export default function HomeScreen() {
     return (
       <Surface tone="base" radius={16} style={{ marginBottom: 12 }}>
         <Pressy
-          onPress={() => navigation.navigate("Editor", { id: item.id })}
+          onPress={() => onNavigateToEditor(item.id)}
           style={{ padding: 16, flexDirection: "row", alignItems: "flex-start" }}
         >
           <View style={{ flex: 1 }}>
@@ -156,6 +148,7 @@ export default function HomeScreen() {
               marginLeft: 8,
               fontSize: 15,
               color: colors.text,
+              padding: 0,
             }}
             placeholder="搜索日记..."
             placeholderTextColor={colors.muted}
@@ -181,7 +174,7 @@ export default function HomeScreen() {
 
       <View style={{ position: "absolute", right: 24, bottom: 40 }}>
         <Pressy
-          onPress={() => navigation.navigate("Editor", {})}
+          onPress={() => onNavigateToEditor()}
           style={{
             backgroundColor: colors.accent,
             width: 56,

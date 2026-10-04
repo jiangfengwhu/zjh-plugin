@@ -1,24 +1,22 @@
-import React from "react";
-import { NavigationContainer, NavigationIndependentTree } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import React, { useState } from "react";
 import HomeScreen from "./screens/HomeScreen";
 import EditorScreen from "./screens/EditorScreen";
 
-const Stack = createNativeStackNavigator();
-
 export default function App() {
+  const [route, setRoute] = useState<{ name: "Home" | "Editor"; id?: string }>({ name: "Home" });
+
+  if (route.name === "Editor") {
+    return (
+      <EditorScreen
+        id={route.id}
+        onGoBack={() => setRoute({ name: "Home" })}
+      />
+    );
+  }
+
   return (
-    <NavigationIndependentTree>
-      <NavigationContainer>
-        <Stack.Navigator
-          screenOptions={{
-            headerShown: false,
-          }}
-        >
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Editor" component={EditorScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </NavigationIndependentTree>
+    <HomeScreen
+      onNavigateToEditor={(id) => setRoute({ name: "Editor", id })}
+    />
   );
 }
