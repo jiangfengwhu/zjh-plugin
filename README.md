@@ -1,6 +1,6 @@
 # zjh-plugin
 
-紫金花应用源码仓库：apps/<id>/ 按应用管理，apps/jolly 是默认安装的伙伴与工坊，templates/basic 是新应用模板。SDK、RN 宿主与构建工具由 zjh-dynamic 维护。
+紫金花应用源码仓库：apps/<id>/ 按应用管理，供用户作品和后续官方应用使用；templates/basic 是新应用模板。Jolly 制作进度已集成到 zjh-dynamic 宿主主包，不再作为插件安装或发布。SDK、RN 宿主与构建工具由 zjh-dynamic 维护。
 
 使用 Node.js >=22.11.0，在仓库根目录运行 npm ci。根依赖和锁文件固定 SDK，应用接入、公开能力及依赖规则见安装包 node_modules/@zijinhua/app-sdk/README.md，共享库清单在其 dist/libraries.md。
 
