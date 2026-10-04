@@ -126,7 +126,8 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen style={{ backgroundColor: colors.canvas }}>
+    // @ts-ignore
+    <Screen edges={["bottom", "left", "right"]} style={{ backgroundColor: colors.canvas }}>
       <ScreenBar>
         <PageHeader
           title="日记本"

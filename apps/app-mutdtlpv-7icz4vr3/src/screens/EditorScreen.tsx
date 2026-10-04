@@ -128,7 +128,8 @@ export default function EditorScreen() {
   };
 
   return (
-    <Screen style={{ backgroundColor: colors.canvas }}>
+    // @ts-ignore
+    <Screen edges={["bottom", "left", "right"]} style={{ backgroundColor: colors.canvas }}>
       <ScreenBar>
         <PageHeader
           title={id ? "编辑日记" : "新建日记"}
