@@ -4,11 +4,8 @@ import { getCreationService } from "@zijinhua/app-sdk/creation";
 import type { WorkshopStatus } from "@zijinhua/app-sdk/creation";
 import { AppState } from "react-native";
 import { AgentScreen, type AgentTrace } from "./AgentScreen";
-import { RequirementComposer } from "./RequirementComposer";
 import {
-  FeedbackReview,
   readFeedback,
-  feedbackPrompt,
   type ApplicationFeedback,
 } from "./FeedbackReview";
 import {
@@ -39,7 +36,6 @@ export default function Workshop({
     title === appId ? "新作品" : title
   );
   const {
-    runCloudEvolve,
     cancelCloudRun,
     loadJulesRun,
     loadJulesSession,
@@ -436,131 +432,11 @@ export default function Workshop({
     console.log("app error", where, detail.trim().slice(0, 4000));
   }
 
-  async function runCloud(
-    text: string,
-    status = "正在生成",
-    original = text,
-    preparedTitle?: string
-  ) {
-    if (
-      busyRef.current ||
-      detached.current ||
-      context.storage.get("__accountScope") !== accountScope
-    )
-      return;
-    if (!text.trim() || text.length > 8000) {
-      context.toast.show("修改需求需为 1 到 8000 个字符，内容已保留", "error");
-      return;
-    }
-    let workspaces: Array<{ appId: string; title: string }>;
-    try {
-      workspaces = JSON.parse(context.storage.get("workspaces") || "[]");
-      if (
-        !Array.isArray(workspaces) ||
-        workspaces.some(
-          (item) =>
-            !item ||
-            typeof item.appId !== "string" ||
-            typeof item.title !== "string"
-        )
-      )
-        throw new Error("invalid");
-    } catch {
-      context.toast.show(
-        "作品记录暂时无法读取，请重新打开工坊；需求已保留",
-        "error"
-      );
-      return;
-    }
-    busyRef.current = true;
-    setBusy(true);
-    // 回复同一份心愿沿用动态身份；轮次消息的时间由 cloudEvolve 单独管理。
-    const continuing = sessionId && !canContinue;
-    const startedAt =
-      continuing && runStartedAt > 0 ? runStartedAt : Date.now();
-    const wish = continuing && prompt.trim() ? prompt : original;
-    setCanContinue(false);
-    setShowDelivery(false);
-    setDeliveryStage("making");
-    setPendingDelivery(false);
-    setHistory([]);
-    setHistoryCursor(undefined);
-    if (title === "新应用" || title === "未命名作品") {
-      const workspace = workspaces.find(
-        (item: { appId: string }) => item.appId === appId
-      );
-      if (workspace) {
-        workspace.title = (preparedTitle || original)
-          .replace(/\s+/g, " ")
-          .slice(0, 20);
-        context.storage.set("workspaces", JSON.stringify(workspaces));
-      }
-    }
-    if (preparedTitle) setTargetTitle(preparedTitle);
-    setRunStartedAt(startedAt);
-    setPrompt(wish);
-    setWorkshopPhase("making");
-    setAwaitingReply(false);
-    setDeliveryMessage("");
-    setTraces([]);
-    setReport("");
-    onShowWorkshop?.();
-    setStatus(status);
-    cloudStop.current = false;
-    stopRequested.current = false;
-    cloudRun.current = {};
-    let waiting = false;
-    try {
-      const outcome = await runCloudEvolve({
-        requirement: text,
-        onStatus: setStatus,
-        onTrace: setTraces,
-        onRunId: (runId) => {
-          context.storage.remove(`requirementDraft.${appId}`);
-          context.storage.remove(`pendingFeedback.${appId}`);
-          setSessionId(runId);
-          cloudRun.current = { runId };
-          saveJulesRun({ session: runId, prompt: wish, startedAt });
-          if (stopRequested.current && !detached.current) void stop();
-        },
-        shouldStop: () => cloudStop.current,
-        shouldPause: () => !visibleRef.current,
-      });
-      if (outcome === "cancelled") {
-        if (detached.current) return;
-        setAwaitingReply(true);
-        setWorkshopPhase("stopped");
-        setStatus("已发送停止请求");
-        setBusy(false);
-        return;
-      }
-      if (outcome === "waiting") {
-        waiting = true;
-        setAwaitingReply(true);
-        return;
-      }
-      waiting = true;
-      setShowDelivery(true);
-      setWorkshopPhase("ready");
-      setRequirement("");
-      setStatus("正在检查新包");
-      await checkWorkshopDelivery(
-        cloudRun.current?.runId || (await loadJulesSession())
-      );
-      setBusy(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.log("evolve failed", message);
-      setWorkshopPhase(waiting ? "ready" : "failed");
-      if (!waiting) setAwaitingReply(true);
-      setStatus(message);
-      setBusy(false);
-    } finally {
-      cloudRun.current = null;
-      busyRef.current = false;
-      setBusy(false);
-      if (!waiting && !detached.current) clearJulesRun();
-    }
+  function openComposer(text = "") {
+    if (busyRef.current || sessionLoading || updateBusy || detached.current || context.storage.get("__accountScope") !== accountScope) return;
+    if (!visibleRef.current) return;
+    context.storage.set("workshopTarget", appId);
+    context.navigation.create(text);
   }
 
   async function resumeCloud() {
@@ -761,19 +637,7 @@ export default function Workshop({
     onShowWorkshop?.();
   }
 
-  async function submit() {
-    const text = requirement.trim();
-    if (
-      !text ||
-      busyRef.current ||
-      sessionLoading ||
-      updateBusy ||
-      (sessionId && !awaitingReply && !canContinue)
-    )
-      return;
-    console.log("evolve submit", providerId);
-    await runCloud(text);
-  }
+  function submit() { openComposer(requirement); }
 
   const stage: WorkshopStage = busy
     ? "making"
@@ -794,66 +658,6 @@ export default function Workshop({
     <AgentScreen
       visible={visible}
       stage={stage}
-      preparation={
-        feedback && !busy ? (
-          <FeedbackReview
-            value={feedback}
-            owned={feedback.appId === appId}
-            disabled={
-              sessionLoading ||
-              updateBusy ||
-              Boolean(sessionId && !awaitingReply && !canContinue)
-            }
-            onChange={(body) =>
-              context.storage.set(
-                `pendingFeedback.${appId}`,
-                JSON.stringify({ ...feedback, body })
-              )
-            }
-            onDiscard={() => context.storage.remove(`pendingFeedback.${appId}`)}
-            onConfirm={() => {
-              if (
-                busyRef.current ||
-                sessionLoading ||
-                updateBusy ||
-                detached.current ||
-                !visibleRef.current ||
-                context.storage.get("__accountScope") !== accountScope ||
-                (sessionId && !awaitingReply && !canContinue)
-              )
-                return;
-              const text = feedbackPrompt(feedback);
-              setRequirement(text);
-              void runCloud(
-                text,
-                "正在提交修改反馈",
-                feedback.body,
-                feedback.appId !== appId ? `基于${feedback.title}` : undefined
-              );
-            }}
-          />
-        ) : !sessionId && !busy ? (
-          <RequirementComposer
-            key={`${accountScope}.${appId}`}
-            appId={appId}
-            value={requirement}
-            onChange={setRequirement}
-            disabled={sessionLoading || updateBusy}
-            visible={visible}
-            onStart={(text, original, preparedTitle) => {
-              if (
-                busyRef.current ||
-                sessionLoading ||
-                updateBusy ||
-                detached.current ||
-                context.storage.get("__accountScope") !== accountScope
-              )
-                return;
-              void runCloud(text, "正在生成", original, preparedTitle);
-            }}
-          />
-        ) : undefined
-      }
       canContinue={canContinue}
       targetTitle={targetTitle}
       value={requirement}
@@ -883,8 +687,9 @@ export default function Workshop({
       onPublish={() => void publishWish()}
       providerId={providerId}
       onProviderChange={setProviderId}
-      onChange={setRequirement}
-      onSubmit={() => void submit()}
+      onChange={openComposer}
+      onSubmit={submit}
+      onEdit={() => openComposer(requirement)}
       onStop={() => void stop()}
       onBack={onBack ?? context.navigation.back}
     />

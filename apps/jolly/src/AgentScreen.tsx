@@ -15,7 +15,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { EdgeModal as Modal, Screen, ScreenBar } from "@zijinhua/app-sdk/ui";
-import { PromptBar } from "@zijinhua/app-sdk/ui";
 import { BackChip, GiltLine, Icon, Pressy, SectionTitle, Surface } from "@zijinhua/app-sdk/ui";
 import { JollyLoading, JollyVideoPlayer, type JollyState } from "./ui";
 import { themedStyleSheet, useTheme, type Theme } from "@zijinhua/app-sdk/ui";
@@ -59,6 +58,7 @@ type Props = {
   onProviderChange: (id: string) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onEdit?: () => void;
   onStop: () => void;
   onBack?: () => void;
   publicReleaseId?: string;
@@ -179,6 +179,7 @@ export const AgentScreen = memo(function AgentScreen({
   onProviderChange,
   onChange,
   onSubmit,
+  onEdit,
   onStop,
   onBack,
   publicReleaseId, candidateReleaseId, history, historyCursor, historyBusy, historyError, onLoadHistory, scrollKey, preparation,
@@ -641,18 +642,12 @@ export const AgentScreen = memo(function AgentScreen({
         ) : null}
       </ScrollView>
 
-      {!preparation ? <PromptBar
-        value={value}
-        busy={busy}
-        disabled={sessionLoading || deliveryBusy || Boolean(sessionId && !awaitingReply && !canContinue)}
-        placeholder={showDelivery ? "继续修改这个应用" : awaitingReply ? "把你的回应告诉伙伴" : "说说你想做什么小应用"}
-        providers={AGENT_PROVIDERS}
-        providerId={providerId}
-        onProviderChange={onProviderChange}
-        onChange={onChange}
-        onSend={() => onSubmit()}
-        onStop={onStop}
-      /> : null}
+      {!preparation ? <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 }}>
+        <Pressy accessibilityRole="button" disabled={!busy && (sessionLoading || deliveryBusy || Boolean(sessionId && !awaitingReply && !canContinue))} onPress={busy ? onStop : onEdit ?? onSubmit} scale={1} style={{ minHeight: 48, borderRadius: 8, backgroundColor: busy ? colors.redTint : colors.accent, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Icon name={busy ? "stop" : "plus"} size={18} color={busy ? colors.redText : colors.onAccent} />
+          <Text style={{ fontFamily: colors.mono, fontSize: 14, color: busy ? colors.redText : colors.onAccent }}>{busy ? "停止制作" : hasSession ? "继续修改" : "填写制作需求"}</Text>
+        </Pressy>
+      </View> : null}
 
       <Modal visible={recordsOpen || stepsOpen} onRequestClose={() => { setRecordsOpen(false); setStepsOpen(false); }}>
         <Screen style={styles.screen}><ScreenBar style={styles.header}><BackChip onPress={() => { setRecordsOpen(false); setStepsOpen(false); }} /><Text style={styles.title}>{stepsOpen ? "全部步骤" : "制作记录"}</Text></ScreenBar>
