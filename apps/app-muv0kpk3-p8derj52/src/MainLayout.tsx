@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { useTheme, Icon, PageHeader, Screen, ScreenBottomBar } from "@zijinhua/app-sdk/ui";
+import { useTheme, Icon, PageHeader } from "@zijinhua/app-sdk/ui";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardState } from "react-native-keyboard-controller";
 import { getAppContext } from "@zijinhua/app-sdk";
 import AccountingTab from "./tabs/AccountingTab";
 import CalendarTab from "./tabs/CalendarTab";
@@ -11,6 +13,8 @@ type Tab = "accounting" | "calendar" | "charts" | "qa";
 
 export default function MainLayout() {
   const { colors } = useTheme();
+  const { bottom } = useSafeAreaInsets();
+  const keyboardOpen = useKeyboardState((state) => state.isVisible);
   const [currentTab, setCurrentTab] = useState<Tab>("accounting");
   const ctx = getAppContext();
 
@@ -32,7 +36,7 @@ export default function MainLayout() {
   ];
 
   return (
-    <Screen style={{ flex: 1, backgroundColor: colors.canvas }}>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.canvas }}>
       <PageHeader
         title="AI 记账本"
         onBack={() => ctx.navigation.back()}
@@ -40,7 +44,8 @@ export default function MainLayout() {
       <View style={{ flex: 1 }}>
         {renderTabContent()}
       </View>
-      <ScreenBottomBar style={[styles.tabBar, {
+      {!keyboardOpen && <View style={[styles.tabBar, {
+        paddingBottom: bottom,
         backgroundColor: colors.surfaceRaised,
         borderTopColor: colors.line,
         borderTopLeftRadius: colors.radius.lg,
@@ -65,8 +70,8 @@ export default function MainLayout() {
             </TouchableOpacity>
           );
         })}
-      </ScreenBottomBar>
-    </Screen>
+      </View>}
+    </SafeAreaView>
   );
 }
 
