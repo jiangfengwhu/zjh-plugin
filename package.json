@@ -6,10 +6,9 @@
   ],
   "scripts": {
     "init:application": "zjh-app init",
-    "build:application": "zjh-app build",
     "publish:application": "zjh-app publish"
   },
   "devDependencies": {
-    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/3fc970539e56c305ebfee25b9183a1f0cc090d804fbac96695e5c57ecc3d1c65"
+    "@zijinhua/app-sdk": "https://zjh-cdn.297782.xyz/v1/sdk/a93f24e4f708405b3aa21d05c475238c3174441b5e6546f7d61c0d1b0ac1c66d"
   }
 }
