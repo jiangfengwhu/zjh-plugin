@@ -6,7 +6,6 @@
   ],
   "scripts": {
     "init:application": "zjh-app init",
-    "build:application": "zjh-app build",
     "publish:application": "zjh-app publish"
   },
   "devDependencies": {
