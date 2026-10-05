@@ -19,18 +19,21 @@ export default function AccountingTab() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const prompt = `
-        你是一个记账助手。请从用户的输入中提取记账信息，并严格输出 JSON 格式，不要包含任何 markdown 标记，只输出 JSON 文本。
+        你是一个记账助手。请从用户的输入中提取记账信息。支持一次性识别多条记账记录。
+        请严格输出 JSON 数组格式，不要包含任何 markdown 标记，只输出 JSON 文本。
         当前日期是 ${today}。
         如果用户没有指定日期，默认使用当前日期。
         如果没指定类型，默认为 expense (支出)。如果是发工资、收钱等，为 income (收入)。
-        输出的 JSON 格式必须是：
-        {
-          "date": "YYYY-MM-DD",
-          "amount": 数字,
-          "type": "expense" | "income",
-          "category": "类别名称，例如 餐饮、交通、购物、工资等",
-          "description": "具体描述"
-        }
+        输出的 JSON 格式必须是一个数组，数组中每个对象为：
+        [
+          {
+            "date": "YYYY-MM-DD",
+            "amount": 数字,
+            "type": "expense" | "income",
+            "category": "类别名称，例如 餐饮、交通、购物、工资等",
+            "description": "具体描述"
+          }
+        ]
 
         用户输入: ${text}
       `;
@@ -44,18 +47,27 @@ export default function AccountingTab() {
           const parsedStr = result.text.replace(/```json/g, "").replace(/```/g, "").trim();
           const parsed = JSON.parse(parsedStr);
 
-          if (parsed.amount && parsed.type) {
-            store.addTransaction({
-              date: parsed.date || today,
-              amount: Number(parsed.amount),
-              type: parsed.type,
-              category: parsed.category || "其他",
-              description: parsed.description || text
-            });
-            ctx.toast.show("记账成功", "success");
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          let addedCount = 0;
+
+          items.forEach(item => {
+            if (item.amount && item.type) {
+              store.addTransaction({
+                date: item.date || today,
+                amount: Number(item.amount),
+                type: item.type,
+                category: item.category || "其他",
+                description: item.description || text
+              });
+              addedCount++;
+            }
+          });
+
+          if (addedCount > 0) {
+            ctx.toast.show(`成功记账 ${addedCount} 笔`, "success");
             setInputText("");
           } else {
-             ctx.toast.show("无法识别记账信息", "error");
+            ctx.toast.show("无法识别记账信息", "error");
           }
         } catch (e) {
           ctx.toast.show("解析AI返回结果失败", "error");

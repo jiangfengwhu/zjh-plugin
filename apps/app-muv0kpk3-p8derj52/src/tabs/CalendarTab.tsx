@@ -58,6 +58,8 @@ export default function CalendarTab() {
     <View style={styles.container}>
       <Calendar
         onDayPress={(day: any) => setSelectedDate(day.dateString)}
+        onMonthChange={(month: any) => setSelectedDate(month.dateString)}
+        enableSwipeMonths={true}
         markedDates={markedDates}
         theme={{
           calendarBackground: colors.canvas,

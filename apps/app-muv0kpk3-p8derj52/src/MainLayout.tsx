@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, Icon, PageHeader, Screen, Surface } from "@zijinhua/app-sdk/ui";
 import { getAppContext } from "@zijinhua/app-sdk";
 import AccountingTab from "./tabs/AccountingTab";
@@ -13,6 +14,7 @@ export default function MainLayout() {
   const { colors } = useTheme();
   const [currentTab, setCurrentTab] = useState<Tab>("accounting");
   const ctx = getAppContext();
+  const insets = useSafeAreaInsets();
 
   const renderTabContent = () => {
     switch (currentTab) {
@@ -40,7 +42,7 @@ export default function MainLayout() {
       <View style={{ flex: 1 }}>
         {renderTabContent()}
       </View>
-      <Surface tone="raised" style={[styles.tabBar, { borderTopColor: colors.line }]}>
+      <Surface tone="raised" style={[styles.tabBar, { borderTopColor: colors.line, paddingBottom: insets.bottom || 10, height: 64 + (insets.bottom || 10) }]}>
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
@@ -68,9 +70,7 @@ export default function MainLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
-    height: 60,
     borderTopWidth: 1,
-    paddingBottom: 10, // basic safe area for non-iPhone X, normally uses safe area context but simple here
     alignItems: "center",
     justifyContent: "space-around"
   },
