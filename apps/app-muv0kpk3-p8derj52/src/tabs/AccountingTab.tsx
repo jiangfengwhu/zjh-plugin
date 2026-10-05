@@ -110,6 +110,7 @@ export default function AccountingTab() {
           busy={isBusy}
           placeholder="告诉AI：今天午饭花了20..."
           variant="Rounded"
+          providers={[]}
         />
       </View>
 

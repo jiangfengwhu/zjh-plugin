@@ -98,6 +98,7 @@ ${txSummary || "暂无记录"}
           busy={isBusy}
           placeholder="问问你的账单..."
           variant="Rounded"
+          providers={[]}
         />
       </View>
     </View>

@@ -4,8 +4,7 @@
   "mark": "a",
   "accent": "#7A5BD0",
   "appId": "app-muv0kpk3-p8derj52",
-  "version": "1.0.1",
-  "releaseNotes": "修复底部导航栏与系统手势区背景不一致，移除重复安全区留白。",
+  "version": "1.0.0",
   "dataSchemaVersion": 1,
   "moduleBase": 2400000
 }
