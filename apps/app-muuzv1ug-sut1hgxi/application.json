@@ -1,0 +1,10 @@
+{
+  "title": "日记本",
+  "summary": "记录生活中的点点滴滴，支持分享到动态。",
+  "mark": "日",
+  "accent": "#4CAF50",
+  "appId": "app-muuzv1ug-sut1hgxi",
+  "version": "1.0.0",
+  "dataSchemaVersion": 1,
+  "moduleBase": 2300000
+}
