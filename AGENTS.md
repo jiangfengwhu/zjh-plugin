@@ -6,4 +6,4 @@ Node.js ≥22.11.0。开工先切到指定任务分支（未指定则使用本�
 
 开发规则查 `node_modules/@zijinhua/app-sdk/README.md`；参数和共享库按需查该包的 `dist/*.d.ts`、`dist/libraries.md`。不升级 SDK、不虚构 API、不绕过校验。
 
-完成后执行 `npm run publish:application -- <id>`，自动构建并发布候选。仅上传和清单写入成功才报告发布成功；失败用中文说明原因。上架由作者决定。默认不另跑构建、类型检查、测试或预览。
+完成开发必须执行 `npm run publish:application -- <id>`，该命令自动打包验证并发布候选，无需提前运行 build、类型检查、测试或预览。发布失败先修复原因并重试；只有命令返回 `published: true` 才能报告完成，不能以任务结束代替发布。确实无法解决时说明尚未发布及阻塞原因。上架由作者决定。
