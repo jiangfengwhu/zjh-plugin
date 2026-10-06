@@ -25,7 +25,7 @@ export default function App() {
     try {
       const html = `
         <div style="background-color: ${selectedMood.color}20; border-radius: 16px; padding: 20px; text-align: center; border: 1px solid ${selectedMood.color}40;">
-          <div style="font-size: 48px; margin-bottom: 12px;">${selectedMood.emoji}</div>
+          <div style="font-size: 48px; line-height: 1.2; padding: 4px 0; margin-bottom: 12px;">${selectedMood.emoji}</div>
           <div style="font-size: 18px; font-weight: bold; color: ${selectedMood.color}; margin-bottom: 16px;">
             今天的心情是：${selectedMood.label}
           </div>
