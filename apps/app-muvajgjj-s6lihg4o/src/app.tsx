@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
-import { View, Text, TextInput, KeyboardAvoidingView, ScrollView, Animated, Platform } from "react-native";
+import { View, Text, TextInput, ScrollView, Animated, Platform } from "react-native";
 import { getAppContext } from "@zijinhua/app-sdk";
-import { BackChip, useTheme, Pressy, Icon } from "@zijinhua/app-sdk/ui";
+import { BackChip, useTheme, Pressy, Icon, Screen, ScreenBar } from "@zijinhua/app-sdk/ui";
 
 const defaultCandidates = ["火锅", "烧烤", "麦当劳", "肯德基", "拉面", "炒饭", "饺子", "披萨", "寿司", "沙拉"];
 
@@ -75,15 +75,12 @@ export default function App() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.canvas }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={{ flex: 1, paddingTop: 48 }}>
-        <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-          <BackChip onPress={ctx.navigation.back} />
-        </View>
+    <Screen style={{ flex: 1 }}>
+      <ScreenBar style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+        <BackChip onPress={ctx.navigation.back} />
+      </ScreenBar>
 
+      <View style={{ flex: 1 }}>
         {/* Draw Area */}
         <View style={{
           alignItems: 'center',
@@ -212,6 +209,6 @@ export default function App() {
           </View>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 }
