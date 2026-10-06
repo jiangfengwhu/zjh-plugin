@@ -78,13 +78,57 @@ export default function App() {
     ctx.haptics.trigger("selection");
   };
 
+  const handleShare = () => {
+    if (students.length === 0) {
+      ctx.toast.show("还没有添加小朋友", "error");
+      return;
+    }
+
+    const maxFlowers = Math.max(...students.map(s => s.flowers));
+
+    if (maxFlowers === 0) {
+      ctx.toast.show("大家还没有获得小红花哦", "info");
+      return;
+    }
+
+    const topStudents = students.filter(s => s.flowers === maxFlowers);
+    const names = topStudents.map(s => s.name).join('、');
+
+    const htmlContent = `
+      <div style="padding: 20px; background-color: #FFF0F5; border-radius: 12px; text-align: center;">
+        <h2 style="color: #E91E63; margin-bottom: 16px;">🌺 班级小红花之星 🌺</h2>
+        <p style="font-size: 18px; color: #333; line-height: 1.5; padding: 10px 0;">
+          恭喜 <strong>${names}</strong> 同学！
+        </p>
+        <p style="font-size: 16px; color: #666;">
+          获得了 <strong>${maxFlowers}</strong> 朵小红花！继续加油哦！
+        </p>
+        <div style="font-size: 40px; margin-top: 20px; line-height: 1.2; padding: 10px 0;">
+          👏🎉💐
+        </div>
+      </div>
+    `;
+
+    ctx.feed.compose({
+      html: htmlContent,
+      body: `恭喜 ${names} 同学获得了 ${maxFlowers} 朵小红花！`,
+    }).catch(e => {
+        console.error("Failed to share", e);
+    });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.line }}>
-        <Pressable accessibilityRole="button" onPress={ctx.navigation.back} style={{ padding: 8, marginRight: 8 }}>
-          <Icon name="back" color={colors.text} size={24} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={ctx.navigation.back} style={{ padding: 8, marginRight: 8 }}>
+            <Icon name="back" color={colors.text} size={24} />
+          </Pressable>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: 'bold' }}>班级小红花</Text>
+        </View>
+        <Pressable accessibilityRole="button" onPress={handleShare} style={{ padding: 8 }}>
+          <Icon name="send" color={colors.accent} size={24} />
         </Pressable>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: 'bold' }}>班级小红花</Text>
       </View>
 
       <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
