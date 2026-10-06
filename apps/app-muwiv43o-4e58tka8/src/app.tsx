@@ -18,6 +18,28 @@ export default function App() {
   const [selectedMood, setSelectedMood] = useState(MOODS[0]);
   const [text, setText] = useState("");
   const [isSharing, setIsSharing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const prompt = `你是一个心情日记助手。用户今天的心情是“${selectedMood.label}”。${text ? `用户提供了一些灵感：“${text}”。` : ""}请帮用户写一段简短的日记内容，表达这种心情。直接输出正文，不要包含多余的客套话。`;
+      const res = await ctx.ai.complete({
+        messages: [{ role: "user", content: prompt }]
+      });
+      if (res.ok) {
+        setText(res.text);
+      } else {
+        ctx.toast.show(res.error || "生成失败", "error");
+      }
+    } catch (e) {
+      console.error(e);
+      ctx.toast.show("生成失败", "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleShare = async () => {
     if (isSharing) return;
@@ -97,12 +119,21 @@ export default function App() {
         </View>
 
         <View style={{ gap: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text }}>
-            写点什么吧...
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text }}>
+              写点什么吧...
+            </Text>
+            <Button
+              label="AI 帮我写"
+              variant="outline"
+              busy={isGenerating}
+              disabled={isGenerating}
+              onPress={handleGenerate}
+            />
+          </View>
           <TextInput
             multiline
-            placeholder="今天发生了什么事让你有这样的心情？"
+            placeholder="今天发生了什么事让你有这样的心情？也可以只写几个关键词，让 AI 帮你扩写..."
             value={text}
             onChangeText={setText}
             style={{
