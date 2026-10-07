@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { useTheme } from "@zijinhua/app-sdk/ui";
 
@@ -11,6 +11,7 @@ import { StatsView } from "./pages/StatsView";
 export default function App() {
   const ctx = getAppContext();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'home' | 'calendar' | 'stats'>('home');
 
   const renderContent = () => {
@@ -22,12 +23,13 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+    <View style={{ flex: 1, backgroundColor: colors.canvas }}>
       <View style={{
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingTop: insets.top + 12,
+        paddingBottom: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.line
       }}>
@@ -48,7 +50,7 @@ export default function App() {
         borderTopWidth: 1,
         borderTopColor: colors.line,
         backgroundColor: colors.surface,
-        paddingBottom: 8, // For safe area
+        paddingBottom: insets.bottom,
       }}>
         {[
           { key: 'home', label: '签到' },
@@ -77,6 +79,6 @@ export default function App() {
           );
         })}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
