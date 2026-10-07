@@ -1,0 +1,9 @@
+{
+  "appName": "AI 虚拟宠物陪伴",
+  "description": "一款温馨治愈的AI虚拟宠物应用，随时随地陪伴您，支持个性化培养和AI对话。",
+  "accent": "#FFB088",
+  "appId": "app-muxz3n6p-zyr0gjf6",
+  "version": "1.0.1",
+  "releaseNotes": "首发版本，包含基础虚拟宠物形象、状态追踪、日常互动及AI对话功能。",
+  "moduleBase": 3100000
+}
