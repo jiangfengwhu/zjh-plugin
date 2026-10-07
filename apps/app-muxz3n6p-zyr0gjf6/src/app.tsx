@@ -1,17 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Text, Button, Surface, useTheme, Loading, Icon } from "@zijinhua/app-sdk/ui";
-import { getAppContext } from "@zijinhua/app-sdk";
+import { Text, Button, Surface, useTheme, Loading, Input, Icon } from "@zijinhua/app-sdk/ui";
+import { getAppContext, AiMessage } from "@zijinhua/app-sdk";
 import { usePetState, getPetEmotion } from "./store";
-import { ChatScreen } from "./chat";
+import { PetAvatar } from "./PetAvatar";
+
+type Message = {
+  id: string;
+  role: "user" | "pet";
+  text: string;
+};
 
 export default function App() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const app = getAppContext();
   const { state, updateState, initialized } = usePetState();
-  const [showChat, setShowChat] = useState(false);
+
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [loadingMsg, setLoadingMsg] = useState(false);
+  const scrollViewRef = useRef<any>(null);
 
   if (!initialized) {
     return (
@@ -21,19 +32,13 @@ export default function App() {
     );
   }
 
-  if (showChat) {
-    return <ChatScreen state={state} onClose={() => setShowChat(false)} />;
-  }
-
   const emotion = getPetEmotion(state);
-  const getPetFace = () => {
-    switch (emotion) {
-      case "happy": return "(＾▽＾)";
-      case "sad": return "(；ω；)";
-      case "sleepy": return "(￣o￣) . z Z";
-      default: return "(・ω・)";
-    }
-  };
+  const emotionText = {
+    happy: "开心",
+    neutral: "平静",
+    sad: "难过",
+    sleepy: "困倦"
+  }[emotion];
 
   const handleAction = (action: "feed" | "play" | "clean" | "sleep") => {
     app.haptics.trigger("impactMedium");
@@ -69,6 +74,45 @@ export default function App() {
     });
   };
 
+  const handleSend = async () => {
+    if (!input.trim() || loadingMsg) return;
+
+    const userText = input.trim();
+    setInput("");
+
+    const newMsg: Message = { id: Date.now().toString(), role: "user", text: userText };
+    setMessages(prev => [...prev, newMsg]);
+    setLoadingMsg(true);
+
+    const systemPrompt = `你现在是一只名叫${state.name}的${state.breed}。
+你的当前状态是：
+- 心情: ${state.mood}/100 (${emotionText})
+- 健康: ${state.health}/100
+- 活力: ${state.energy}/100
+
+请根据你当前的状态和性格，以第一人称简短自然地回复主人。可以带小动作描写。`;
+
+    const aiMessages: AiMessage[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.slice(-5).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text } as AiMessage)),
+      { role: "user", content: userText }
+    ];
+
+    try {
+      const result = await app.ai.complete({ messages: aiMessages });
+
+      if (result.ok) {
+        setMessages(prev => [...prev, { id: Date.now().toString() + "_pet", role: "pet", text: result.text }]);
+      } else {
+        app.toast.show("似乎没有听懂呢...", "error");
+      }
+    } catch (e) {
+      app.toast.show("网络好像有点问题", "error");
+    } finally {
+      setLoadingMsg(false);
+    }
+  };
+
   const StatBar = ({ label, value, color }: { label: string, value: number, color: string }) => (
     <View style={styles.statRow}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -93,24 +137,44 @@ export default function App() {
         </View>
       </Surface>
 
-      {/* Main Pet Display */}
-      <ScrollView contentContainerStyle={styles.mainArea}>
-        <Surface tone="inset" radius={24} style={[styles.petDisplay, { backgroundColor: theme.colors.inset }]}>
-          <View style={styles.petAvatar}>
-            <Text style={{ fontSize: 60, color: theme.colors.ink }}>
-              {getPetFace()}
-            </Text>
-          </View>
-          <Text style={{ marginTop: 16, color: theme.colors.muted, fontSize: 16 }}>
-            {emotion === "happy" && "状态很好哦~"}
-            {emotion === "sad" && "好像需要一点关心..."}
-            {emotion === "sleepy" && "好困，想睡觉了..."}
-            {emotion === "neutral" && "正在发呆中..."}
-          </Text>
-        </Surface>
+      {/* Main Layout */}
+      <ScrollView contentContainerStyle={styles.mainScroll} ref={scrollViewRef} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+        {/* Skia Pet Display */}
+        <View style={styles.petDisplayArea}>
+          <Surface tone="inset" radius={24} style={[styles.petDisplay, { backgroundColor: theme.colors.inset }]}>
+            <PetAvatar emotion={emotion} size={200} />
+          </Surface>
+        </View>
+
+        {/* Integrated Chat Area */}
+        <View style={styles.chatArea}>
+          {messages.map(msg => (
+            <View key={msg.id} style={[styles.messageRow, msg.role === "user" ? styles.messageRowUser : styles.messageRowPet]}>
+              <Surface
+                tone="raised"
+                radius={16}
+                style={[
+                  styles.messageBubble,
+                  { backgroundColor: msg.role === "user" ? theme.colors.accent : theme.colors.surfaceRaised }
+                ]}
+              >
+                <Text style={{ color: msg.role === "user" ? theme.colors.onAccent : theme.colors.text }}>
+                  {msg.text}
+                </Text>
+              </Surface>
+            </View>
+          ))}
+          {loadingMsg && (
+            <View style={styles.messageRowPet}>
+              <Surface tone="raised" radius={16} style={[styles.messageBubble, { backgroundColor: theme.colors.surfaceRaised }]}>
+                <Text style={{ color: theme.colors.muted }}>思考中...</Text>
+              </Surface>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
-      {/* Action Footer */}
+      {/* Action Footer + Chat Input */}
       <Surface style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: theme.colors.surface }]}>
         <View style={styles.actionGrid}>
           <View style={styles.actionColumn}>
@@ -126,8 +190,16 @@ export default function App() {
             <Button label="睡觉" intent="neutral" variant="outline" onPress={() => handleAction("sleep")} />
           </View>
         </View>
-        <View style={{ marginTop: 12 }}>
-          <Button label="和它聊天" intent="brand" variant="solid" onPress={() => setShowChat(true)} />
+        <View style={styles.inputArea}>
+          <Input
+            value={input}
+            onChangeText={setInput}
+            placeholder="对它说点什么..."
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+            containerStyle={{ flex: 1, marginRight: 12 }}
+          />
+          <Button label="发送" intent="brand" variant="solid" onPress={handleSend} busy={loadingMsg} disabled={!input.trim()} />
         </View>
       </Surface>
     </View>
@@ -170,30 +242,40 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
-  mainArea: {
+  mainScroll: {
     flexGrow: 1,
-    justifyContent: "center",
+    padding: 16,
+    paddingBottom: 24,
+  },
+  petDisplayArea: {
     alignItems: "center",
-    padding: 24,
+    marginBottom: 24,
   },
   petDisplay: {
     width: "100%",
+    maxWidth: 300,
     aspectRatio: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  petAvatar: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+  chatArea: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  messageRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  messageRowUser: {
+    justifyContent: "flex-end",
+  },
+  messageRowPet: {
+    justifyContent: "flex-start",
+  },
+  messageBubble: {
+    maxWidth: "80%",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   footer: {
     paddingHorizontal: 16,
@@ -210,5 +292,10 @@ const styles = StyleSheet.create({
     width: "50%",
     paddingHorizontal: 6,
     paddingBottom: 12,
+  },
+  inputArea: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
   }
 });
