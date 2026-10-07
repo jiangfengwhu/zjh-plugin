@@ -1,0 +1,9 @@
+{
+  "appName": "极简记账",
+  "description": "低摩擦的个人记账应用，轻松记录每一笔收支，实时掌握净结余。",
+  "accent": "#7A5BD0",
+  "appId": "app-muxrue6i-re29xclw",
+  "version": "1.0.1",
+  "releaseNotes": "首次发布：支持快速记账与收支统计",
+  "moduleBase": 3000000
+}
