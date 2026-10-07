@@ -5,6 +5,7 @@ import { getAppContext } from "@zijinhua/app-sdk";
 import { useTheme, Surface, Button, Icon, EmptyState } from "@zijinhua/app-sdk/ui";
 import { useRecords, Record } from "./store";
 import { FormModal } from "./FormModal";
+import { AIBotModal } from "./AIBotModal";
 
 export default function App() {
   const ctx = getAppContext();
@@ -13,6 +14,7 @@ export default function App() {
   const { records, saveRecord, deleteRecord } = useRecords();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [aiModalVisible, setAiModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<Record | null>(null);
 
   const { income, expense, balance } = useMemo(() => {
@@ -123,36 +125,62 @@ export default function App() {
         }
       />
 
-      <Pressable
-        onPress={() => {
-          setEditingRecord(null);
-          setModalVisible(true);
-        }}
-        style={{
-          position: 'absolute',
-          bottom: 32,
-          right: 32,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: colors.accent,
-          justifyContent: 'center',
-          alignItems: 'center',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
-          elevation: 5,
-        }}
-      >
-        <Icon name="plus" color="#FFF" size={32} />
-      </Pressable>
+      <View style={{ position: 'absolute', bottom: 32, right: 32, alignItems: 'flex-end', gap: 16 }}>
+        <Pressable
+          onPress={() => setAiModalVisible(true)}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: colors.surface,
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 3,
+            elevation: 4,
+            borderWidth: 1,
+            borderColor: colors.line,
+          }}
+        >
+          <Icon name="engine" color={colors.text} size={24} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setEditingRecord(null);
+            setModalVisible(true);
+          }}
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: colors.accent,
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 5,
+          }}
+        >
+          <Icon name="plus" color="#FFF" size={32} />
+        </Pressable>
+      </View>
 
       <FormModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSave={saveRecord}
         editingRecord={editingRecord}
+      />
+
+      <AIBotModal
+        visible={aiModalVisible}
+        onClose={() => setAiModalVisible(false)}
+        onSave={saveRecord}
       />
     </SafeAreaView>
   );
