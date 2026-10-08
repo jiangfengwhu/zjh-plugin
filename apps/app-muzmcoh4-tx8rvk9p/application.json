@@ -1,0 +1,9 @@
+{
+  "appName": "待办事项",
+  "description": "简单的待办事项管理应用",
+  "accent": "#7A5BD0",
+  "appId": "app-muzmcoh4-tx8rvk9p",
+  "version": "1.0.1",
+  "releaseNotes": "首次发布：基础待办功能。",
+  "moduleBase": 3300000
+}
