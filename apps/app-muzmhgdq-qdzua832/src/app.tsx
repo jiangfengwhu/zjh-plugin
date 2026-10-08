@@ -13,6 +13,7 @@ import Animated, {
   withSequence,
   withTiming,
   withSpring,
+  runOnJS,
 } from "react-native-reanimated";
 
 type PlanetState = {
@@ -126,69 +127,7 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, [state !== null]);
 
-  if (!state) {
-    return null;
-  }
-
-  // --- Gestures ---
-
-  // Tap: Plant a tree
-  const tap = Gesture.Tap()
-    .onStart(() => {
-      app.haptics.trigger("selection");
-      planetScale.value = withSequence(
-        withTiming(0.95, { duration: 50 }),
-        withTiming(1, { duration: 50 })
-      );
-    })
-    .onEnd(() => {
-      setState((prev) => (prev ? { ...prev, trees: prev.trees + 1 } : prev));
-    });
-
-  // Pan: Blow wind / change temperature
-  const pan = Gesture.Pan()
-    .onUpdate((e) => {
-      windOffset.value = e.translationX;
-    })
-    .onEnd((e) => {
-      app.haptics.trigger("impactMedium");
-      windOffset.value = withSpring(0);
-      setState((prev) => {
-        if (!prev) return prev;
-        const windIncrease = Math.min(100, prev.windLevel + Math.abs(e.velocityX) / 100);
-        // Dragging left makes it colder, right makes it hotter
-        const tempChange = e.translationX > 0 ? 5 : -5;
-        const newTemp = Math.max(0, Math.min(100, prev.temperature + tempChange));
-        return {
-          ...prev,
-          windLevel: windIncrease,
-          temperature: newTemp,
-        };
-      });
-    });
-
-  // LongPress: Rain
-  const longPress = Gesture.LongPress()
-    .minDuration(500)
-    .onStart(() => {
-      app.haptics.trigger("impactHeavy");
-      cloudOpacity.value = withTiming(1, { duration: 200 });
-    })
-    .onEnd(() => {
-      cloudOpacity.value = withTiming(0, { duration: 500 });
-      setState((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          waterLevel: Math.min(100, prev.waterLevel + 10),
-          temperature: Math.max(0, prev.temperature - 2), // Rain cools the planet
-        };
-      });
-    });
-
-  const composedGesture = Gesture.Simultaneous(tap, pan, longPress);
-
-  // --- Animated Styles ---
+  // --- Animated Styles (Must be before early return) ---
   const planetStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -203,6 +142,87 @@ export default function App() {
       opacity: cloudOpacity.value,
     };
   });
+
+  // Early return after all hooks are called
+  if (!state) {
+    return null;
+  }
+
+  // --- Helpers for Worklets ---
+  const triggerHaptic = (kind: Parameters<typeof app.haptics.trigger>[0]) => {
+    app.haptics.trigger(kind);
+  };
+
+  const handlePlantTree = () => {
+    setState((prev) => (prev ? { ...prev, trees: prev.trees + 1 } : prev));
+  };
+
+  const handleWindEnd = (velocityX: number, translationX: number) => {
+    setState((prev) => {
+      if (!prev) return prev;
+      const windIncrease = Math.min(100, prev.windLevel + Math.abs(velocityX) / 100);
+      // Dragging left makes it colder, right makes it hotter
+      const tempChange = translationX > 0 ? 5 : -5;
+      const newTemp = Math.max(0, Math.min(100, prev.temperature + tempChange));
+      return {
+        ...prev,
+        windLevel: windIncrease,
+        temperature: newTemp,
+      };
+    });
+  };
+
+  const handleRain = () => {
+    setState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        waterLevel: Math.min(100, prev.waterLevel + 10),
+        temperature: Math.max(0, prev.temperature - 2), // Rain cools the planet
+      };
+    });
+  };
+
+  // --- Gestures ---
+
+  // Tap: Plant a tree
+  const tap = Gesture.Tap()
+    .onStart(() => {
+      runOnJS(triggerHaptic)("selection");
+      planetScale.value = withSequence(
+        withTiming(0.95, { duration: 50 }),
+        withTiming(1, { duration: 50 })
+      );
+    })
+    .onEnd(() => {
+      runOnJS(handlePlantTree)();
+    });
+
+  // Pan: Blow wind / change temperature
+  const pan = Gesture.Pan()
+    .onUpdate((e) => {
+      windOffset.value = e.translationX;
+    })
+    .onEnd((e) => {
+      runOnJS(triggerHaptic)("impactMedium");
+      windOffset.value = withSpring(0);
+      runOnJS(handleWindEnd)(e.velocityX, e.translationX);
+    });
+
+  // LongPress: Rain
+  const longPress = Gesture.LongPress()
+    .minDuration(500)
+    .onStart(() => {
+      runOnJS(triggerHaptic)("impactHeavy");
+      cloudOpacity.value = withTiming(1, { duration: 200 });
+    })
+    .onEnd(() => {
+      cloudOpacity.value = withTiming(0, { duration: 500 });
+      runOnJS(handleRain)();
+    });
+
+  const composedGesture = Gesture.Simultaneous(tap, pan, longPress);
+
 
   // Render helpers
   const getPlanetColor = () => {
