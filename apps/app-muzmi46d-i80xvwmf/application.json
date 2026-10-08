@@ -1,0 +1,9 @@
+{
+  "appName": "离谱鉴宝",
+  "description": "一款搞怪鉴宝小游戏，每局展示一件原创离谱物品，点击不同部位寻找线索，揭晓意外来历和真伪估价。",
+  "accent": "#F59E0B",
+  "appId": "app-muzmi46d-i80xvwmf",
+  "version": "1.0.0",
+  "releaseNotes": "首次发布：体验离谱的文物鉴宝之旅，找出隐藏的线索，看破真相！",
+  "moduleBase": 3600000
+}
