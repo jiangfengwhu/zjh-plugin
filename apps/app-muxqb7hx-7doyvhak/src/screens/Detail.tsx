@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme, Text, Icon, ConfirmDialog } from "@zijinhua/app-sdk/ui";
+import { useTheme, Text, Icon, ConfirmDialog, RichMarkdown } from "@zijinhua/app-sdk/ui";
 import { getAppContext } from "@zijinhua/app-sdk";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -63,9 +63,7 @@ export default function Detail({ navigation, route }: Props) {
             {`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`}
           </Text>
         </View>
-        <Text style={[styles.bodyText, { color: colors.text }]}>
-          {diary.content}
-        </Text>
+        <RichMarkdown markdown={diary.content} fontSize={17} lineHeight={30} />
       </ScrollView>
 
       <ConfirmDialog
