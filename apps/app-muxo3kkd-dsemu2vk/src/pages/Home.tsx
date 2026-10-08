@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, Scrol
 import { getAppContext } from "@zijinhua/app-sdk";
 import { useTheme, Button } from "@zijinhua/app-sdk/ui";
 import { MoodType, MoodRecord, getMoodRecords, saveMoodRecord, MOOD_COLORS, MOOD_LABELS } from "../store";
-import { Smile, Meh, Frown, Angry, CloudRain, Wind } from "lucide-react-native";
+import { Smile, Meh, Frown, Angry, CloudRain, Wind, Sparkles } from "lucide-react-native";
 
 export function Home() {
   const { colors } = useTheme();
@@ -11,6 +11,7 @@ export function Home() {
   const [todayRecord, setTodayRecord] = useState<MoodRecord | null>(null);
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
   const [note, setNote] = useState("");
+  const [isPolishing, setIsPolishing] = useState(false);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -27,6 +28,44 @@ export function Home() {
   useEffect(() => {
     loadTodayRecord();
   }, []);
+
+  const handlePolish = async () => {
+    if (!note.trim()) {
+      ctx.toast.show("请先输入日记内容", "info");
+      return;
+    }
+    if (!selectedMood) {
+      ctx.toast.show("请先选择一个心情", "info");
+      return;
+    }
+
+    setIsPolishing(true);
+    const abortController = new AbortController();
+
+    try {
+      const result = await ctx.ai.complete({
+        messages: [
+          {
+            role: 'user',
+            content: `请帮我润色以下日记，以更好地表达我当前"${MOOD_LABELS[selectedMood]}"的心情。使其自然、有共鸣、更富有情感表达。直接输出润色后的文本即可，不要包含多余的解释。原文：${note}`
+          }
+        ]
+      }, { signal: abortController.signal });
+
+      if (result.ok) {
+        setNote(result.text);
+        ctx.toast.show("润色成功", "success");
+      } else {
+        if (result.error !== 'CANCELLED' && result.code !== 'CANCELLED') {
+           ctx.toast.show("润色失败，请稍后重试", "error");
+        }
+      }
+    } catch (e) {
+      ctx.toast.show("润色发生错误", "error");
+    } finally {
+      setIsPolishing(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!selectedMood) {
@@ -95,7 +134,24 @@ export function Home() {
         </View>
 
         <View style={{ marginTop: 16 }}>
-          <Text style={{ color: colors.muted, marginBottom: 8 }}>写点什么（选填）</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <Text style={{ color: colors.muted }}>写点什么（选填）</Text>
+            <Pressable
+              onPress={handlePolish}
+              disabled={isPolishing || !note.trim()}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                opacity: (isPolishing || !note.trim()) ? 0.5 : 1
+              }}
+            >
+              <Sparkles size={16} color={colors.accentText} />
+              <Text style={{ color: colors.accentText, fontSize: 14 }}>
+                {isPolishing ? "润色中..." : "AI 润色"}
+              </Text>
+            </Pressable>
+          </View>
           <TextInput
             style={{
               backgroundColor: colors.surface,

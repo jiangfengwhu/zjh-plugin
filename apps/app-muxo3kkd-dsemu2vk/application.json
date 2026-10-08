@@ -3,7 +3,7 @@
   "description": "一款轻量级的移动端心情记录工具，帮助用户便捷地追踪情绪变化，通过视觉化的方式回顾生活状态，提供简单的心理慰藉。",
   "accent": "#90ADC6",
   "appId": "app-muxo3kkd-dsemu2vk",
-  "version": "1.0.2",
-  "releaseNotes": "修复了底部导航栏与系统导航区域背景不连贯的问题，优化了全面屏适配。",
+  "version": "1.1.0",
+  "releaseNotes": "新增AI润色功能，帮助你更好地表达心情日记。",
   "moduleBase": 2800000
 }
