@@ -1,9 +1,9 @@
 {
   "appName": "畅所欲言",
-  "description": "分享你的想法，发表长文本内容",
+  "description": "分享你的生活，和朋友互动，类似朋友圈",
   "accent": "#7A5BD0",
   "appId": "app-muzb71t3-trwt97sn",
-  "version": "1.0.1",
-  "releaseNotes": "首次发布，包含发推主要功能",
+  "version": "1.0.2",
+  "releaseNotes": "更新应用描述，定位为社交朋友圈应用",
   "moduleBase": 3200000
 }
