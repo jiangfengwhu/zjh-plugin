@@ -1,0 +1,9 @@
+{
+  "appName": "别按红按钮",
+  "description": "一个打破第四面墙的互动小游戏，点击推进，加入出人意料的分支、按钮逃跑和多个结局。",
+  "accent": "#E53935",
+  "appId": "app-muzmh60o-mwm8l6yc",
+  "version": "1.0.1",
+  "releaseNotes": "发布别按红按钮小游戏，包含多种结局。",
+  "moduleBase": 3400000
+}
