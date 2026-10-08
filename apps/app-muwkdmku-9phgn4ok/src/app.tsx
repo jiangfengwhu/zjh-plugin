@@ -15,6 +15,8 @@ export default function App() {
   const { colors } = useTheme();
   const [students, setStudents] = useState<Student[]>([]);
   const [newStudentName, setNewStudentName] = useState("");
+  const [aiInput, setAiInput] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const STORAGE_KEY = "little-red-flower-data";
 
   useEffect(() => {
@@ -78,6 +80,67 @@ export default function App() {
     ctx.haptics.trigger("selection");
   };
 
+  const handleAiRecord = async () => {
+    if (!aiInput.trim()) {
+      ctx.toast.show("请输入AI记录内容", "error");
+      return;
+    }
+
+    setIsAiLoading(true);
+    try {
+      const studentList = students.map(s => s.name).join(", ");
+      const prompt = `班级里有这些小朋友：${studentList || '目前还没有添加小朋友'}。根据以下自然语言描述，提取出需要奖励小红花的小朋友名字及数量。描述：“${aiInput}”。请只返回 JSON 格式，如 [{"name": "张三", "count": 2}]。如果没有识别出有效记录，返回空数组 []。`;
+
+      const result = await ctx.ai.complete({
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      if (result.ok) {
+        try {
+          const match = result.text.match(/\[.*\]/s);
+          const parsed = match ? JSON.parse(match[0]) : [];
+
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+             ctx.toast.show("未能从输入中识别出小红花记录", "info");
+             return;
+          }
+
+          let updatedStudents = [...students];
+          let updatedNames = [];
+
+          for (const item of parsed) {
+            if (item.name && typeof item.count === 'number') {
+               const index = updatedStudents.findIndex(s => s.name === item.name);
+               if (index !== -1) {
+                 updatedStudents[index].flowers += item.count;
+                 updatedNames.push(item.name);
+               }
+            }
+          }
+
+          if (updatedNames.length > 0) {
+             saveStudents(updatedStudents);
+             setAiInput("");
+             ctx.toast.show(`已为 ${updatedNames.join(", ")} 记录小红花`, "success");
+             ctx.haptics.trigger("notificationSuccess");
+          } else {
+             ctx.toast.show("识别到名字，但小朋友不在班级列表中", "info");
+          }
+        } catch (e) {
+          console.error("Failed to parse AI output", e);
+          ctx.toast.show("AI 返回格式解析失败", "error");
+        }
+      } else {
+        ctx.toast.show(result.error || "AI 处理失败", "error");
+      }
+    } catch (e) {
+      console.error(e);
+      ctx.toast.show("请求异常", "error");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const handleShare = () => {
     if (students.length === 0) {
       ctx.toast.show("还没有添加小朋友", "error");
@@ -139,6 +202,16 @@ export default function App() {
           containerStyle={{ flex: 1 }}
         />
         <Button label="添加" onPress={addStudent} intent="brand" />
+      </View>
+
+      <View style={{ paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Input
+          value={aiInput}
+          onChangeText={setAiInput}
+          placeholder="AI记录：例如'小明得2朵红花'"
+          containerStyle={{ flex: 1 }}
+        />
+        <Button label="AI记录" onPress={handleAiRecord} intent="brand" busy={isAiLoading} />
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }}>

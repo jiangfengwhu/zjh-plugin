@@ -1,10 +1,10 @@
 {
-  "title": "做一个小红花应用记录班里的小朋友获取小红花的情况",
-  "summary": "",
-  "mark": "a",
-  "accent": "#7A5BD0",
+  "appName": "班级小红花",
+  "description": "方便快捷地记录和管理班级里小朋友获取的小红花数量，支持一键分享动态，还可以使用AI智能记录！",
+  "accent": "#E91E63",
   "appId": "app-muwkdmku-9phgn4ok",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "releaseNotes": "新增 AI 智能记录功能，一句话自动加红花；优化了分享到动态的图文排版。",
   "dataSchemaVersion": 1,
   "moduleBase": 2500000
 }
