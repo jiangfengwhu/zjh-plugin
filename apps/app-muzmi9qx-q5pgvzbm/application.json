@@ -1,0 +1,9 @@
+{
+  "appName": "猫咪打工",
+  "description": "模拟猫咪打工小游戏，体验十秒内的极速挑战！",
+  "accent": "#F5A623",
+  "appId": "app-muzmi9qx-q5pgvzbm",
+  "version": "1.0.0",
+  "releaseNotes": "首次发布，包含多种猫咪打工作业任务。",
+  "moduleBase": 3700000
+}
