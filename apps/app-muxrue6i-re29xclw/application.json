@@ -3,7 +3,7 @@
   "description": "低摩擦的个人记账应用，轻松记录每一笔收支，实时掌握净结余。",
   "accent": "#7A5BD0",
   "appId": "app-muxrue6i-re29xclw",
-  "version": "1.0.3",
-  "releaseNotes": "新增：添加应用图标，界面细节优化",
+  "version": "1.0.4",
+  "releaseNotes": "新增：支持一键分享本月财务汇总，轻松分享你的记账心得",
   "moduleBase": 3000000
 }

@@ -49,6 +49,37 @@ export default function App() {
     setModalVisible(true);
   };
 
+  const handleShare = () => {
+    const currentMonthStr = `${new Date().getFullYear()}年${new Date().getMonth() + 1}月`;
+    const htmlDraft = `
+      <div style="padding: 16px; font-family: sans-serif; line-height: 1.5;">
+        <h3 style="margin-top: 0; color: #7A5BD0;">📊 我的极简记账报告</h3>
+        <p style="color: #666; margin-bottom: 16px;">${currentMonthStr} 财务汇总</p>
+        <div style="background-color: #f5f5f5; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <span style="color: #666;">💰 本月结余</span>
+            <strong style="font-size: 18px; color: ${balance >= 0 ? '#10b981' : '#ef4444'};">¥${balance.toFixed(2)}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: #666;">📈 本月收入</span>
+            <span style="color: #10b981;">¥${income.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666;">📉 本月支出</span>
+            <span style="color: #ef4444;">¥${expense.toFixed(2)}</span>
+          </div>
+        </div>
+        <p style="font-size: 14px; color: #999; text-align: center; margin: 0;">来自「极简记账」应用</p>
+      </div>
+    `;
+
+    ctx.feed.compose({
+      html: htmlDraft,
+    }).catch((e) => {
+      console.error('Share error', e);
+    });
+  };
+
   const renderItem: ListRenderItem<Record> = ({ item }) => {
     const isIncome = item.type === 'income';
     const dateStr = new Date(item.dateMs).toLocaleDateString();
@@ -87,11 +118,16 @@ export default function App() {
 
   return (
     <SafeAreaView style={{flex:1,backgroundColor:colors.canvas}}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
-        <Pressable accessibilityRole="button" onPress={ctx.navigation.back} style={{ padding: 8, marginLeft: -8 }}>
-          <Icon name="back" color={colors.text} size={24} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={ctx.navigation.back} style={{ padding: 8, marginLeft: -8 }}>
+            <Icon name="back" color={colors.text} size={24} />
+          </Pressable>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginLeft: 8 }}>极简记账</Text>
+        </View>
+        <Pressable onPress={handleShare} style={{ padding: 8, marginRight: -8 }}>
+          <Icon name="send" color={colors.accentText || colors.text} size={24} />
         </Pressable>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text, marginLeft: 8 }}>极简记账</Text>
       </View>
 
       <View style={{ padding: 16 }}>
