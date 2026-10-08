@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text, Button, Surface, useTheme, Loading, Input, Icon } from "@zijinhua/app-sdk/ui";
 import { getAppContext, AiMessage } from "@zijinhua/app-sdk";
 import { usePetState, getPetEmotion } from "./store";
-import { PetAvatar } from "./PetAvatar";
+import { PetAvatar, InteractionType } from "./PetAvatar";
 
 type Message = {
   id: string;
@@ -22,6 +22,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loadingMsg, setLoadingMsg] = useState(false);
+  const [interaction, setInteraction] = useState<InteractionType>("none");
   const scrollViewRef = useRef<any>(null);
 
   if (!initialized) {
@@ -42,6 +43,11 @@ export default function App() {
 
   const handleAction = (action: "feed" | "play" | "clean" | "sleep") => {
     app.haptics.trigger("impactMedium");
+    setInteraction(action);
+    setTimeout(() => {
+      setInteraction("none");
+    }, 1500); // Reset interaction state after animation
+
     updateState(prev => {
       let next = { ...prev };
       switch (action) {
@@ -137,17 +143,22 @@ export default function App() {
         </View>
       </Surface>
 
-      {/* Main Layout */}
-      <ScrollView contentContainerStyle={styles.mainScroll} ref={scrollViewRef} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
-        {/* Skia Pet Display */}
+      {/* Main Layout (Fixed Split) */}
+      <View style={styles.mainContainer}>
+        {/* Skia Pet Display - Fixed at top */}
         <View style={styles.petDisplayArea}>
           <Surface tone="inset" radius={24} style={[styles.petDisplay, { backgroundColor: theme.colors.inset }]}>
-            <PetAvatar emotion={emotion} size={200} />
+            <PetAvatar emotion={emotion} interaction={interaction} size={200} />
           </Surface>
         </View>
 
-        {/* Integrated Chat Area */}
-        <View style={styles.chatArea}>
+        {/* Integrated Chat Area - Scrollable */}
+        <ScrollView
+          style={styles.chatScroll}
+          contentContainerStyle={styles.chatScrollContent}
+          ref={scrollViewRef}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
           {messages.map(msg => (
             <View key={msg.id} style={[styles.messageRow, msg.role === "user" ? styles.messageRowUser : styles.messageRowPet]}>
               <Surface
@@ -171,8 +182,8 @@ export default function App() {
               </Surface>
             </View>
           )}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* Action Footer + Chat Input */}
       <Surface style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: theme.colors.surface }]}>
@@ -242,14 +253,13 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
-  mainScroll: {
-    flexGrow: 1,
-    padding: 16,
-    paddingBottom: 24,
+  mainContainer: {
+    flex: 1,
   },
   petDisplayArea: {
     alignItems: "center",
-    marginBottom: 24,
+    padding: 16,
+    paddingBottom: 8,
   },
   petDisplay: {
     width: "100%",
@@ -258,8 +268,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  chatArea: {
+  chatScroll: {
     flex: 1,
+  },
+  chatScrollContent: {
+    padding: 16,
+    paddingBottom: 24,
+    flexGrow: 1,
     justifyContent: "flex-end",
   },
   messageRow: {

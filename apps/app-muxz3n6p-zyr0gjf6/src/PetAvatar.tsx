@@ -3,13 +3,15 @@ import { Canvas, Circle, Group, Path, Paint } from "@shopify/react-native-skia";
 import { useSharedValue, useDerivedValue, withRepeat, withTiming, withSequence, Easing } from "react-native-reanimated";
 
 type PetEmotion = "happy" | "neutral" | "sad" | "sleepy";
+export type InteractionType = "none" | "feed" | "play" | "clean" | "sleep";
 
 interface PetAvatarProps {
   emotion: PetEmotion;
+  interaction: InteractionType;
   size: number;
 }
 
-export function PetAvatar({ emotion, size }: PetAvatarProps) {
+export function PetAvatar({ emotion, interaction, size }: PetAvatarProps) {
   const cx = size / 2;
   const cy = size / 2;
   const baseRadius = size * 0.4;
@@ -17,12 +19,49 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
   const breathScale = useSharedValue(1);
   const blinkScale = useSharedValue(1);
   const earRotate = useSharedValue(0);
+  const jumpOffset = useSharedValue(0);
+
+  useEffect(() => {
+    if (interaction === "feed") {
+      jumpOffset.value = withSequence(
+        withTiming(-size * 0.1, { duration: 200, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 200, easing: Easing.in(Easing.quad) }),
+        withTiming(-size * 0.05, { duration: 150, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) })
+      );
+    } else if (interaction === "play") {
+      earRotate.value = withSequence(
+        withTiming(-30, { duration: 150 }),
+        withTiming(30, { duration: 150 }),
+        withTiming(-30, { duration: 150 }),
+        withTiming(30, { duration: 150 }),
+        withTiming(0, { duration: 150 })
+      );
+      jumpOffset.value = withSequence(
+        withTiming(-size * 0.1, { duration: 150 }),
+        withTiming(0, { duration: 150 }),
+        withTiming(-size * 0.1, { duration: 150 }),
+        withTiming(0, { duration: 150 })
+      );
+    } else if (interaction === "clean") {
+      blinkScale.value = withSequence(
+        withTiming(0.1, { duration: 100 }),
+        withTiming(0.1, { duration: 500 }), // hold eyes closed
+        withTiming(1, { duration: 200 })
+      );
+      earRotate.value = withSequence(
+        withTiming(-15, { duration: 100 }),
+        withTiming(-15, { duration: 500 }),
+        withTiming(0, { duration: 200 })
+      );
+    }
+  }, [interaction, size]);
 
   useEffect(() => {
     // Breathing animation
     breathScale.value = withRepeat(
-      withTiming(emotion === "sleepy" ? 1.05 : 1.02, {
-        duration: emotion === "sleepy" ? 2000 : 1500,
+      withTiming(emotion === "sleepy" || interaction === "sleep" ? 1.05 : 1.02, {
+        duration: emotion === "sleepy" || interaction === "sleep" ? 2000 : 1500,
         easing: Easing.inOut(Easing.ease)
       }),
       -1,
@@ -31,6 +70,7 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
 
     // Blinking animation
     const blink = () => {
+      if (interaction !== "none") return; // don't blink randomly during interactions
       blinkScale.value = withSequence(
         withTiming(0.1, { duration: 100 }),
         withTiming(1, { duration: 100 })
@@ -38,7 +78,7 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
     };
 
     let blinkInterval: ReturnType<typeof setInterval>;
-    if (emotion !== "sleepy") {
+    if (emotion !== "sleepy" && interaction !== "sleep") {
       blinkInterval = setInterval(() => {
         if (Math.random() > 0.3) blink(); // Random blinking
       }, 3000);
@@ -47,29 +87,34 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
     }
 
     // Ear wiggling
-    if (emotion === "happy") {
-      earRotate.value = withRepeat(
-        withSequence(
-          withTiming(-10, { duration: 200 }),
-          withTiming(10, { duration: 200 }),
-          withTiming(0, { duration: 200 })
-        ),
-        -1,
-        true
-      );
-    } else if (emotion === "sad") {
-      earRotate.value = withTiming(-15, { duration: 500 });
-    } else {
-      earRotate.value = withTiming(0, { duration: 500 });
+    if (interaction === "none") {
+      if (emotion === "happy") {
+        earRotate.value = withRepeat(
+          withSequence(
+            withTiming(-10, { duration: 200 }),
+            withTiming(10, { duration: 200 }),
+            withTiming(0, { duration: 200 })
+          ),
+          -1,
+          true
+        );
+      } else if (emotion === "sad") {
+        earRotate.value = withTiming(-15, { duration: 500 });
+      } else {
+        earRotate.value = withTiming(0, { duration: 500 });
+      }
     }
 
     return () => {
       if (blinkInterval) clearInterval(blinkInterval);
     };
-  }, [emotion]);
+  }, [emotion, interaction]);
 
   const bodyTransform = useDerivedValue(() => {
-    return [{ scale: breathScale.value }];
+    return [
+      { translateY: jumpOffset.value },
+      { scale: breathScale.value }
+    ];
   });
 
   const eyeScaleY = useDerivedValue(() => {
@@ -106,10 +151,10 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
 
   // Mouth Path
   let mouthPathStr = "";
-  if (emotion === "happy") {
-    // Smiling mouth
+  if (emotion === "happy" || interaction === "feed" || interaction === "play") {
+    // Smiling / open mouth
     mouthPathStr = `M ${cx - baseRadius * 0.2} ${cy + baseRadius * 0.15} Q ${cx} ${cy + baseRadius * 0.4} ${cx + baseRadius * 0.2} ${cy + baseRadius * 0.15}`;
-  } else if (emotion === "sad") {
+  } else if (emotion === "sad" && interaction === "none") {
     // Sad mouth
     mouthPathStr = `M ${cx - baseRadius * 0.2} ${cy + baseRadius * 0.25} Q ${cx} ${cy + baseRadius * 0.1} ${cx + baseRadius * 0.2} ${cy + baseRadius * 0.25}`;
   } else {
@@ -118,12 +163,11 @@ export function PetAvatar({ emotion, size }: PetAvatarProps) {
   }
 
   // Ear paths
-  const earSize = baseRadius * 0.6;
   const leftEarPath = `M ${cx - baseRadius * 0.8} ${cy - baseRadius * 0.2} L ${cx - baseRadius * 0.4} ${cy - baseRadius * 0.8} L ${cx - baseRadius * 0.9} ${cy - baseRadius * 0.9} Z`;
   const rightEarPath = `M ${cx + baseRadius * 0.8} ${cy - baseRadius * 0.2} L ${cx + baseRadius * 0.4} ${cy - baseRadius * 0.8} L ${cx + baseRadius * 0.9} ${cy - baseRadius * 0.9} Z`;
 
   // Z's for sleepy
-  const zPath = emotion === "sleepy" ? `M ${cx + baseRadius * 0.8} ${cy - baseRadius * 0.5} L ${cx + baseRadius * 1.2} ${cy - baseRadius * 0.5} L ${cx + baseRadius * 0.8} ${cy - baseRadius * 0.9} L ${cx + baseRadius * 1.2} ${cy - baseRadius * 0.9}` : "";
+  const zPath = (emotion === "sleepy" || interaction === "sleep") ? `M ${cx + baseRadius * 0.8} ${cy - baseRadius * 0.5} L ${cx + baseRadius * 1.2} ${cy - baseRadius * 0.5} L ${cx + baseRadius * 0.8} ${cy - baseRadius * 0.9} L ${cx + baseRadius * 1.2} ${cy - baseRadius * 0.9}` : "";
 
 
   return (
