@@ -3,7 +3,7 @@
   "description": "连续播放歌单的音乐应用",
   "accent": "#7A5BD0",
   "appId": "app-mv0mp2w3-k94ya6a0",
-  "version": "1.0.1",
-  "releaseNotes": "1. 新增音乐列表播放功能\n2. 支持顺序连续播放，支持后台播放\n3. 添加播放控制功能",
+  "version": "1.0.2",
+  "releaseNotes": "1. 支持搜索互联网歌曲，接入免费的听歌 (iTunes 接口搜索体验)",
   "moduleBase": 4000000
 }
