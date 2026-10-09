@@ -3,7 +3,7 @@
   "description": "随机播放B站热门或经典视频的播放器。",
   "accent": "#7A5BD0",
   "appId": "app-mv0ebqe2-sjto7mav",
-  "version": "1.0.0",
-  "releaseNotes": "首次发布，包含随机Bilibili视频播放功能。",
+  "version": "1.0.1",
+  "releaseNotes": "支持了视频居中显示，全屏播放，搜索BVID和本地收藏功能。",
   "moduleBase": 3900000
 }
