@@ -3,7 +3,7 @@
   "description": "连续播放歌单的音乐应用",
   "accent": "#7A5BD0",
   "appId": "app-mv0mp2w3-k94ya6a0",
-  "version": "1.0.2",
-  "releaseNotes": "1. 支持搜索互联网歌曲，接入免费的听歌 (iTunes 接口搜索体验)",
+  "version": "1.0.3",
+  "releaseNotes": "再发一次，确保发布成功",
   "moduleBase": 4000000
 }
