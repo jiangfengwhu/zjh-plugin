@@ -3,7 +3,7 @@
   "description": "用于学习英语的单词本",
   "accent": "#7A5BD0",
   "appId": "app-mv0vbi27-z5g60f4t",
-  "version": "1.0.1",
-  "releaseNotes": "首次发布，提供英语单词的添加、查看和删除功能。",
+  "version": "1.0.2",
+  "releaseNotes": "新增 AI 辅助记单词功能：输入中文即可自动生成对应的英文、音标及例句。新增发音功能：点击单词即可朗读。",
   "moduleBase": 4100000
 }
