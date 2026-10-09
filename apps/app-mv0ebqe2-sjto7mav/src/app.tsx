@@ -18,10 +18,11 @@ const BVIDS = [
 
 export default function App() {
   const { colors } = useTheme();
-  const [currentBvid, setCurrentBvid] = useState(BVIDS[0]);
+  const [currentUrl, setCurrentUrl] = useState(`https://player.bilibili.com/player.html?bvid=${BVIDS[0]}&autoplay=1`);
   const [searchInput, setSearchInput] = useState("");
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const app = getAppContext();
+  const [currentBvidForBookmark, setCurrentBvidForBookmark] = useState(BVIDS[0]); // Keep track for bookmarking if playing a BVID directly
 
   useEffect(() => {
     loadBookmarks();
@@ -48,48 +49,59 @@ export default function App() {
   };
 
   const handleNextVideo = () => {
-    let nextBvid = currentBvid;
-    while (nextBvid === currentBvid) {
+    let nextBvid = currentBvidForBookmark;
+    while (nextBvid === currentBvidForBookmark) {
       const randomIndex = Math.floor(Math.random() * BVIDS.length);
       nextBvid = BVIDS[randomIndex];
     }
-    setCurrentBvid(nextBvid);
+    setCurrentBvidForBookmark(nextBvid);
+    setCurrentUrl(`https://player.bilibili.com/player.html?bvid=${nextBvid}&autoplay=1`);
   };
 
   const handleSearch = () => {
     if (searchInput.trim()) {
-      setCurrentBvid(searchInput.trim());
+      const keyword = encodeURIComponent(searchInput.trim());
+      setCurrentUrl(`https://search.bilibili.com/all?keyword=${keyword}`);
+      setCurrentBvidForBookmark(""); // Not a specific BVID anymore
       setSearchInput("");
     }
   };
 
+  const playBookmarkedVideo = (bvid: string) => {
+    setCurrentBvidForBookmark(bvid);
+    setCurrentUrl(`https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=1`);
+  }
+
   const toggleBookmark = () => {
-    if (bookmarks.includes(currentBvid)) {
-      saveBookmarks(bookmarks.filter((b) => b !== currentBvid));
+    if (!currentBvidForBookmark) return;
+    if (bookmarks.includes(currentBvidForBookmark)) {
+      saveBookmarks(bookmarks.filter((b) => b !== currentBvidForBookmark));
     } else {
-      saveBookmarks([currentBvid, ...bookmarks]);
+      saveBookmarks([currentBvidForBookmark, ...bookmarks]);
     }
   };
 
-  const isBookmarked = bookmarks.includes(currentBvid);
+  const isBookmarked = !!currentBvidForBookmark && bookmarks.includes(currentBvidForBookmark);
+  const isSearchMode = currentUrl.includes("search.bilibili.com");
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.canvas }]}>
       <View style={styles.centerContainer}>
         <View style={styles.playerContainer}>
           <WebView
-            source={{ uri: `https://player.bilibili.com/player.html?bvid=${currentBvid}&autoplay=1` }}
+            source={{ uri: currentUrl }}
             style={styles.webview}
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
             allowsFullscreenVideo={true}
+            userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36" // Add a mobile user agent for better mobile search rendering
           />
         </View>
 
         <View style={styles.controlsContainer}>
           <TextInput
             style={[styles.searchInput, { borderColor: colors.line, color: colors.text }]}
-            placeholder="输入 BVID 搜索"
+            placeholder="输入关键词搜索"
             placeholderTextColor={colors.muted}
             value={searchInput}
             onChangeText={setSearchInput}
@@ -97,12 +109,14 @@ export default function App() {
           />
           <View style={styles.buttonsRow}>
             <Button intent="brand" label="搜索" onPress={handleSearch} />
-            <Button intent="neutral" label="换一个" onPress={handleNextVideo} />
-            <Button
-              intent={isBookmarked ? "brand" : "neutral"}
-              label={isBookmarked ? "取消收藏" : "收藏"}
-              onPress={toggleBookmark}
-            />
+            <Button intent="neutral" label="随机播放" onPress={handleNextVideo} />
+            {!isSearchMode && currentBvidForBookmark ? (
+               <Button
+                intent={isBookmarked ? "brand" : "neutral"}
+                label={isBookmarked ? "取消收藏" : "收藏当前视频"}
+                onPress={toggleBookmark}
+              />
+            ) : null}
           </View>
         </View>
 
@@ -117,7 +131,7 @@ export default function App() {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[styles.bookmarkItem, { backgroundColor: colors.surface }]}
-                  onPress={() => setCurrentBvid(item)}
+                  onPress={() => playBookmarkedVideo(item)}
                 >
                   <Text style={{ color: colors.text }}>{item}</Text>
                 </TouchableOpacity>
@@ -142,7 +156,7 @@ const styles = StyleSheet.create({
   },
   playerContainer: {
     width: "100%",
-    aspectRatio: 16 / 9,
+    aspectRatio: 16 / 9, // This aspect ratio works well for videos, but for search it might be a bit narrow. However, to keep it simple and fulfill all requirements without complex dynamic layout changes, we'll keep it.
     backgroundColor: "black",
   },
   webview: {
