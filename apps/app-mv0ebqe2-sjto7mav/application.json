@@ -1,0 +1,9 @@
+{
+  "appName": "B站随机看",
+  "description": "随机播放B站热门或经典视频的播放器。",
+  "accent": "#7A5BD0",
+  "appId": "app-mv0ebqe2-sjto7mav",
+  "version": "1.0.2",
+  "releaseNotes": "支持了按关键词搜索功能。",
+  "moduleBase": 3900000
+}
