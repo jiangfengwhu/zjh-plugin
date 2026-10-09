@@ -1,0 +1,9 @@
+{
+  "appName": "离谱鉴宝",
+  "description": "一款搞怪鉴宝小游戏，输入主题或者随机发挥，由AI动态生成离谱物品，点击不同部位寻找线索，揭晓意外来历和真伪估价。现在还支持收藏你的奇葩鉴定结果哦。",
+  "accent": "#F59E0B",
+  "appId": "app-muzong2b-uwaev4gt",
+  "version": "1.0.0",
+  "releaseNotes": "新增 AI 生成功能和收藏功能，可以保存有趣的离谱鉴定物品。",
+  "moduleBase": 3800000
+}
