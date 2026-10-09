@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@zijinhua/app-sdk/ui";
@@ -13,6 +13,8 @@ interface Track {
   artworkUrl?: string;
 }
 
+const DEFAULT_ARTISTS = ["Taylor Swift", "周杰伦", "Ed Sheeran", "Adele", "Bruno Mars", "Coldplay"];
+
 export default function App() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -25,11 +27,17 @@ export default function App() {
 
   const currentTrack = playlist[currentIndex];
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
+  useEffect(() => {
+    const randomArtist = DEFAULT_ARTISTS[Math.floor(Math.random() * DEFAULT_ARTISTS.length)];
+    setQuery(randomArtist);
+    handleSearchWithQuery(randomArtist);
+  }, []);
+
+  const handleSearchWithQuery = async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
     setLoading(true);
     try {
-      const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=25`);
+      const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&media=music&entity=song&limit=25`);
       const data = await response.json();
 
       const tracks: Track[] = data.results
@@ -50,6 +58,10 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    handleSearchWithQuery(query);
   };
 
   const handleNext = () => {
