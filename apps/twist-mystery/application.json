@@ -3,7 +3,7 @@
   "description": "轻松的反转推理谜题，先猜测、看提示，再揭晓答案。支持 AI 按主题创作和分享给朋友挑战。",
   "accent": "#4B7FA4",
   "appId": "twist-mystery",
-  "version": "1.0.1",
-  "releaseNotes": "聚焦谜面和揭晓体验，移除猜测输入\n出题主题收进底部面板",
+  "version": "1.0.2",
+  "releaseNotes": "优化首屏信息层级、主要操作和紧凑布局\n编辑面板改为原生窗口内的 BottomSheet，避免路由层级影响\n适配深浅主题和底部安全区",
   "moduleBase": 4600000
 }
