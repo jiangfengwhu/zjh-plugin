@@ -6,4 +6,8 @@ Node.js ≥22.11.0。在当前任务分支开发；先执行任务提示中的 S
 
 开发规则查 `node_modules/@zijinhua/app-sdk/README.md`；参数和共享库按需查该包的 `dist/*.d.ts`、`dist/libraries.md`。不虚构 API、不绕过校验。
 
+涉及应用 UI 的设计、开发或修改，先阅读 [.agents/skills/ui-ux-pro-max/SKILL.md](.agents/skills/ui-ux-pro-max/SKILL.md)，按应用用途选择布局和视觉方向，使用 `react-native` 技术栈指引。Skill 是设计参考，SDK 契约与用户要求优先，不统一应用模板。需要保存设计方案时，只写入当前 `apps/<id>/`。
+
+以 Awwwards、Webby Awards、FWA 获奖作品的设计品质为追求，结合应用用途和移动端使用场景，打造有辨识度、视觉精致、交互自然的体验。完成后自查视觉层级、排版、布局、动效与核心操作流程，反复改进发现的问题，避免停留在通用模板或仅功能可用的水平。
+
 完成开发必须执行任务提示中的发布命令，自动打包验证并发布候选，无需提前运行 build、类型检查、测试或预览。发布失败先修复原因并重试；只有命令返回 `published: true` 才能报告完成，不能以任务结束代替发布。确实无法解决时说明尚未发布及阻塞原因。上架由作者决定。

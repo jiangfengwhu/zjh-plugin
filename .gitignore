@@ -6,3 +6,5 @@ dist/
 .wrangler/
 *.log
 .metro-health-check*
+__pycache__/
+*.pyc
