@@ -1,6 +1,10 @@
-export type Meal = { id: string; name: string; description: string; price: number; minutes: number; taste: '清淡' | '香辣' | '家常'; vegetarian: boolean; ingredients: string[]; steps: string[] };
-export type Preferences = { taste: string; budget: number; minutes: number; vegetarian: boolean };
-const meal = (id: string, name: string, description: string, price: number, minutes: number, taste: Meal['taste'], vegetarian: boolean, ingredients: string[], steps: string[]): Meal => ({ id, name, description, price, minutes, taste, vegetarian, ingredients, steps });
+export type IngredientAmount = { amount: number; unit: string };
+export type Meal = { id: string; name: string; description: string; price: number; minutes: number; taste: '清淡' | '香辣' | '家常'; vegetarian: boolean; ingredients: string[]; amounts?: IngredientAmount[]; steps: string[] };
+export type Preferences = { taste: string; budget: number; minutes: number; vegetarian: boolean; people: number; excluded: string[] };
+const AMOUNTS: Record<string, IngredientAmount> = {
+  '番茄': { amount: 1, unit: '个' }, '鸡蛋': { amount: 1, unit: '个' }, '面条': { amount: 100, unit: '克' }, '熟米饭': { amount: 200, unit: '克' }, '香菇': { amount: 100, unit: '克' }, '青菜': { amount: 150, unit: '克' }, '豆腐': { amount: 200, unit: '克' }, '素豆瓣酱': { amount: 10, unit: '克' }, '胡萝卜': { amount: 50, unit: '克' }, '黄瓜': { amount: 0.5, unit: '根' }, '芝麻酱': { amount: 15, unit: '克' }, '土豆': { amount: 1, unit: '个' }, '辣椒': { amount: 1, unit: '个' }, '去骨鸡腿': { amount: 1, unit: '个' }, '西兰花': { amount: 100, unit: '克' }, '鲜虾': { amount: 100, unit: '克' }, '牛肉片': { amount: 120, unit: '克' }, '意面': { amount: 100, unit: '克' }, '洋葱': { amount: 0.25, unit: '个' }, '鸡胸肉': { amount: 150, unit: '克' }, '青椒': { amount: 1, unit: '个' }, '白菜': { amount: 150, unit: '克' }, '吐司': { amount: 2, unit: '片' }, '生菜': { amount: 30, unit: '克' }, '菌菇': { amount: 150, unit: '克' }, '辣椒油': { amount: 5, unit: '毫升' }, '鱼': { amount: 200, unit: '克' }, '姜': { amount: 5, unit: '克' }, '时令蔬菜': { amount: 150, unit: '克' },
+};
+const meal = (id: string, name: string, description: string, price: number, minutes: number, taste: Meal['taste'], vegetarian: boolean, ingredients: string[], steps: string[]): Meal => ({ id, name, description, price, minutes, taste, vegetarian, ingredients, amounts: ingredients.map(name => ({ ...AMOUNTS[name] })), steps });
 export const MEALS: Meal[] = [
   meal('tomato-noodles', '番茄鸡蛋面', '热乎乎的一碗，给今天一个温柔的收尾。', 12, 15, '家常', true, ['番茄', '鸡蛋', '面条'], ['番茄切块，鸡蛋打散。', '先炒鸡蛋，再炒番茄出汁。', '加水煮开，下面煮熟，按口味调味。']),
   meal('mushroom-rice', '香菇青菜盖饭', '鲜香不用复杂，一盘菜配一碗饭就够了。', 13, 20, '清淡', true, ['香菇', '青菜', '熟米饭'], ['青菜洗净，香菇切片。', '炒香菇后加入青菜炒熟。', '少量盐和生抽调味，盖在热米饭上。']),
@@ -19,13 +23,30 @@ export const MEALS: Meal[] = [
   meal('steamed-fish', '清蒸鱼配时蔬', '给自己一顿稍微讲究一点的晚餐。', 45, 30, '清淡', false, ['鱼', '姜', '时令蔬菜', '熟米饭'], ['鱼处理干净，放上姜片。', '蒸至鱼肉完全熟透，蔬菜另行焯熟。', '淋少量蒸鱼豉油，配蔬菜和热米饭。']),
   meal('spicy-beef', '香辣牛肉盖饭', '有肉有菜有热饭，今晚不将就。', 35, 20, '香辣', false, ['牛肉片', '青椒', '熟米饭'], ['牛肉片用生抽和淀粉拌匀。', '炒香辣椒，加入牛肉片炒熟。', '加入青椒翻炒调味，盖在热米饭上。']),
 ];
-export function candidates(p: Preferences): Meal[] { return MEALS.filter(m => (p.taste === '随意' || m.taste === p.taste) && m.price <= p.budget && m.minutes <= p.minutes && (!p.vegetarian || m.vegetarian)); }
-export function choose(p: Preferences, previousId?: string): Meal | undefined { const all = candidates(p); const other = all.filter(m => m.id !== previousId); const pool = other.length ? other : all; return pool[Math.floor(Math.random() * pool.length)]; }
+const ALIASES: Record<string, string[]> = { 海鲜: ['鱼', '虾', '蟹', '贝', '蚝'], 牛肉: ['牛肉'], 鸡肉: ['鸡腿', '鸡胸', '鸡肉'], 菌菇: ['菌菇', '香菇', '蘑菇'], 辣椒: ['辣椒', '豆瓣酱'], 芝麻: ['芝麻', '麻酱'] };
+export function parseExcluded(text: string): string[] { return [...new Set(text.split(/[，,、;；\n]+/).map(x => x.trim().slice(0, 30)).filter(Boolean))].slice(0, 12); }
+export function matches(m: Meal, p: Preferences): boolean {
+  const text = [m.name, ...m.ingredients, ...m.steps].join(' ').toLowerCase();
+  return (p.taste === '随意' || m.taste === p.taste) && m.price <= p.budget && m.minutes <= p.minutes && (!p.vegetarian || m.vegetarian) && !p.excluded.some(term => (ALIASES[term] || [term]).some(word => text.includes(word.toLowerCase())));
+}
+export function candidates(p: Preferences): Meal[] { return MEALS.filter(m => matches(m, p)); }
+export function choose(p: Preferences, previousId?: string, recentIds: string[] = []): Meal | undefined {
+  const all = candidates(p); const other = all.filter(m => m.id !== previousId); const pool = other.length ? other : all;
+  const fresh = pool.filter(m => !recentIds.includes(m.id));
+  if (fresh.length) return fresh[Math.floor(Math.random() * fresh.length)];
+  // When every candidate has been eaten, rotate back to the least recent one.
+  return [...pool].sort((a, b) => recentIds.indexOf(b.id) - recentIds.indexOf(a.id))[0];
+}
+export function ingredientText(m: Meal, people: number): string {
+  return m.ingredients.map((name, i) => { const quantity = m.amounts?.[i]; return quantity ? name + ' ' + Math.round(quantity.amount * people * 100) / 100 + quantity.unit : name; }).join('  ·  ');
+}
 export function parseMeal(value: unknown): Meal | undefined {
   if (!value || typeof value !== 'object') return;
   const m = value as Meal;
   const text = (v: unknown, max: number) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   const list = (v: unknown, max: number) => Array.isArray(v) && v.length > 0 && v.length <= max && v.every(x => text(x, 180));
   if (!text(m.id, 80) || !text(m.name, 30) || !text(m.description, 160) || !Number.isFinite(m.price) || m.price < 0 || m.price > 1000 || !Number.isFinite(m.minutes) || m.minutes < 1 || m.minutes > 240 || !['清淡', '香辣', '家常'].includes(m.taste) || typeof m.vegetarian !== 'boolean' || !list(m.ingredients, 8) || !list(m.steps, 6)) return;
-  return { id: m.id, name: m.name, description: m.description, price: m.price, minutes: m.minutes, taste: m.taste, vegetarian: m.vegetarian, ingredients: [...m.ingredients], steps: [...m.steps] };
+  if (m.amounts !== undefined && (!Array.isArray(m.amounts) || m.amounts.length !== m.ingredients.length || m.amounts.some(q => !q || !Number.isFinite(q.amount) || q.amount <= 0 || q.amount > 2000 || !text(q.unit, 8)))) return;
+  const amounts = m.amounts || MEALS.find(item => item.id === m.id)?.amounts;
+  return { ...(amounts ? { amounts: amounts.map(q => ({ amount: q.amount, unit: q.unit })) } : {}), id: m.id, name: m.name, description: m.description, price: m.price, minutes: m.minutes, taste: m.taste, vegetarian: m.vegetarian, ingredients: [...m.ingredients], steps: [...m.steps] };
 }
