@@ -13,7 +13,13 @@ export interface SearchResult {
 }
 
 export async function searchBooks(query: string): Promise<Book[]> {
-  const url = `https://gutendex.com/books/?search=${encodeURIComponent(query)}`;
+  // If query contains Chinese characters, append &languages=zh
+  const hasChinese = /[\u4e00-\u9fa5]/.test(query);
+  let url = `https://gutendex.com/books/?search=${encodeURIComponent(query)}`;
+  if (hasChinese) {
+    url += '&languages=zh';
+  }
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch books');
