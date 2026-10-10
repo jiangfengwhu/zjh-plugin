@@ -1,0 +1,9 @@
+{
+  "appName": "心情记录",
+  "description": "帮助用户日常记录和管理自己的情绪状态，提供基础的数据可视化回顾，让用户能够清晰地看到自己的心路历程。",
+  "accent": "#F5A623",
+  "appId": "app-mv266xwt-b2gr7cet",
+  "version": "1.0.1",
+  "releaseNotes": "首次发布，提供心情打卡、日历查看、数据统计与提醒功能。",
+  "moduleBase": 4900000
+}
