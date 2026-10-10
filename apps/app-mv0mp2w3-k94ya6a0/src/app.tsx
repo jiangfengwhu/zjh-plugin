@@ -23,7 +23,7 @@ export default function App() {
 
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
@@ -112,7 +112,6 @@ export default function App() {
 
       setPlaylist(tracks);
       setCurrentIndex(0);
-      setPaused(false);
     } catch (e) {
       console.error(e);
       app.toast.show("加载失败，请重试", "error");

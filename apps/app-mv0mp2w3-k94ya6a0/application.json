@@ -3,7 +3,7 @@
   "description": "连续播放歌单的音乐应用",
   "accent": "#7A5BD0",
   "appId": "app-mv0mp2w3-k94ya6a0",
-  "version": "1.0.5",
-  "releaseNotes": "使用AI根据历史搜索记录推荐歌手",
+  "version": "1.0.6",
+  "releaseNotes": "一开始不需要自动播放",
   "moduleBase": 4000000
 }
