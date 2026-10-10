@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetModalProvider, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import { Bookmark, Check, ChevronDown, ChevronUp, RefreshCw, Send, SlidersHorizontal, Sparkles, X } from 'lucide-react-native';
 import { getAppContext, type ShareParams } from '@zijinhua/app-sdk';
@@ -47,6 +48,10 @@ const MealCard = React.memo(function MealCard({ colors: c, current, shared, favo
 });
 
 export default function App() {
+  return <BottomSheetModalProvider><DinnerApp /></BottomSheetModalProvider>;
+}
+
+function DinnerApp() {
   const { colors: c } = useTheme();
   const [prefs, setPrefs] = useState(readPreferences);
   const [filter, setFilter] = useState<'taste' | 'budget' | 'time' | 'people' | 'excluded' | 'history'>();
@@ -58,6 +63,15 @@ export default function App() {
   const [error, setError] = useState('');
   const [showSaved, setShowSaved] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
+  const preferenceSheet = useRef<BottomSheetModal>(null);
+  const insets = useSafeAreaInsets();
+  const backdrop = useCallback((props: Parameters<typeof BottomSheetBackdrop>[0]) => <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.4} pressBehavior="close" />, []);
+  useEffect(() => {
+    if (!showPreferences) return;
+    preferenceSheet.current?.present();
+    const back = BackHandler.addEventListener("hardwareBackPress", () => { preferenceSheet.current?.dismiss(); return true; });
+    return () => { back.remove(); };
+  }, [showPreferences]);
   const [history, setHistory] = useState(readHistory);
   const [exclusionInput, setExclusionInput] = useState(() => readPreferences().excluded.join('、'));
   const eaten = history.some(entry => entry.meal.name === current.name && new Date(entry.at).toDateString() === new Date().toDateString());
@@ -130,29 +144,25 @@ export default function App() {
 
       <Text style={[s.footnote, { color: c.muted }]}>预算按人均筛选 · 用量为估算 · 调味按口味调整</Text>
     </ScrollView>
-    <Modal visible={showPreferences} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setShowPreferences(false)}>
-      <View style={s.modalRoot}>
-        <Pressable accessibilityRole="button" accessibilityLabel="点击遮罩关闭个人偏好" onPress={() => setShowPreferences(false)} style={s.backdrop}/>
-        <KeyboardAvoidingView pointerEvents="box-none" style={s.sheetPosition} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView edges={['bottom']} style={[s.preferenceSheet, { backgroundColor: c.surface }]}>
-          <View style={s.sheetHeader}><View style={{ flex: 1 }}><Text style={[s.sectionTitle, { color: c.text, fontSize: 18 }]}>个人偏好</Text><Text style={[s.subtitle, { color: c.muted }]}>设置一次，下次推荐也会记得。</Text></View><Pressable accessibilityRole="button" accessibilityLabel="关闭个人偏好" onPress={() => setShowPreferences(false)} style={s.icon}><X size={21} color={c.muted}/></Pressable></View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.preferenceContent}>
+    <BottomSheetModal ref={preferenceSheet} snapPoints={['60%']} enableDynamicSizing={false} enablePanDownToClose enableOverDrag={false}
+      backdropComponent={backdrop} onDismiss={() => setShowPreferences(false)}
+      topInset={insets.top} backgroundStyle={{ backgroundColor: c.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 }} handleIndicatorStyle={{ backgroundColor: c.muted }}
+      keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize">
+          <View style={s.sheetHeader}><View style={{ flex: 1 }}><Text style={[s.sectionTitle, { color: c.text, fontSize: 18 }]}>个人偏好</Text><Text style={[s.subtitle, { color: c.muted }]}>设置一次，下次推荐也会记得。</Text></View><Pressable accessibilityRole="button" accessibilityLabel="关闭个人偏好" onPress={() => preferenceSheet.current?.dismiss()} style={s.icon}><X size={21} color={c.muted}/></Pressable></View>
+          <BottomSheetScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={s.preferenceContent}>
         <View style={s.filterRow}>{(['taste', 'budget', 'time'] as const).map(key => <Pressable key={key} accessibilityRole="button" accessibilityState={{ expanded: filter === key }} accessibilityLabel={key === 'taste' ? '选择口味' : key === 'budget' ? '选择预算' : '选择时间'} onPress={() => setFilter(value => value === key ? undefined : key)} style={[s.filter, { backgroundColor: c.surface, borderColor: filter === key ? c.green : c.line }]}><Text style={{ color: c.text, fontSize: 12 }}>{key === 'taste' ? prefs.vegetarian ? '蛋奶素 · ' + prefs.taste : '口味 · ' + prefs.taste : key === 'budget' ? '预算 · ¥' + prefs.budget : '时间 · ' + prefs.minutes + '分'}</Text><ChevronDown size={14} color={c.muted}/></Pressable>)}</View>
         {(filter === 'taste' || filter === 'budget' || filter === 'time') && <View style={[s.filterOptions, { backgroundColor: c.surface, borderColor: c.line }]}><View style={s.chips}>{filter === 'taste' ? ['随意', '家常', '清淡', '香辣'].map(t => chip(t, prefs.taste === t, () => { change({ ...prefs, taste: t }); setFilter(undefined); })) : filter === 'budget' ? [15, 30, 50].map(n => chip('¥' + n + '以内', prefs.budget === n, () => { change({ ...prefs, budget: n }); setFilter(undefined); })) : [10, 20, 30].map(n => chip(n + '分钟内', prefs.minutes === n, () => { change({ ...prefs, minutes: n }); setFilter(undefined); }))}</View>{filter === 'taste' && <View style={s.chips}>{chip('只看蛋奶素食', prefs.vegetarian, () => change({ ...prefs, vegetarian: !prefs.vegetarian }))}</View>}</View>}
         <View style={s.filterRow}>{(['people', 'excluded', 'history'] as const).map(key => <Pressable key={key} accessibilityRole="button" accessibilityState={{ expanded: filter === key }} onPress={() => { setFilter(value => value === key ? undefined : key); if (key === 'excluded') setExclusionInput(prefs.excluded.join('、')); }} style={[s.filter, { backgroundColor: c.surface, borderColor: filter === key ? c.green : c.line }]}><Text numberOfLines={1} style={{ color: c.text, fontSize: 12 }}>{key === 'people' ? prefs.people + ' 人吃' : key === 'excluded' ? prefs.excluded.length ? '不吃 · ' + prefs.excluded.length + '项' : '不吃的食材' : '近7天记录'}</Text><ChevronDown size={14} color={c.muted}/></Pressable>)}</View>
         {filter === 'people' && <View style={s.chips}>{[1,2,3,4].map(n => chip(n + ' 人', prefs.people === n, () => { cancelAi(); setPrefs(p => ({ ...p, people: n })); setFilter(undefined); }))}</View>}
-        {filter === 'excluded' && <View style={[s.filterOptions, { backgroundColor: c.surface, borderColor: c.line }]}><Text style={{ color: c.muted, fontSize: 12 }}>不喜欢或不想吃的食材，用顿号分隔</Text><View style={s.chips}>{['香菜','葱','姜','蒜','辣椒','海鲜','牛肉','鸡蛋'].map(term => chip(term, parseExcluded(exclusionInput).includes(term), () => { const terms = parseExcluded(exclusionInput); setExclusionInput((terms.includes(term) ? terms.filter(x => x !== term) : [...terms,term]).join('、')); }))}</View><TextInput value={exclusionInput} onChangeText={setExclusionInput} maxLength={120} accessibilityLabel="不吃的食材，用顿号分隔" placeholder="例如：香菜、海鲜" placeholderTextColor={c.muted} style={[s.input, { flex: 0, color: c.text, backgroundColor: c.field }]}/><Pressable accessibilityRole="button" onPress={() => { change({ ...prefs, excluded: parseExcluded(exclusionInput) }); setFilter(undefined); }} style={[s.primary, { flex: 0, backgroundColor: c.greenTint }]}><Text style={{ color: c.greenText, fontWeight: '700' }}>保存偏好</Text></Pressable></View>}
+        {filter === 'excluded' && <View style={[s.filterOptions, { backgroundColor: c.surface, borderColor: c.line }]}><Text style={{ color: c.muted, fontSize: 12 }}>不喜欢或不想吃的食材，用顿号分隔</Text><View style={s.chips}>{['香菜','葱','姜','蒜','辣椒','海鲜','牛肉','鸡蛋'].map(term => chip(term, parseExcluded(exclusionInput).includes(term), () => { const terms = parseExcluded(exclusionInput); setExclusionInput((terms.includes(term) ? terms.filter(x => x !== term) : [...terms,term]).join('、')); }))}</View><BottomSheetTextInput value={exclusionInput} onChangeText={setExclusionInput} maxLength={120} accessibilityLabel="不吃的食材，用顿号分隔" placeholder="例如：香菜、海鲜" placeholderTextColor={c.muted} style={[s.input, { flex: 0, color: c.text, backgroundColor: c.field }]}/><Pressable accessibilityRole="button" onPress={() => { change({ ...prefs, excluded: parseExcluded(exclusionInput) }); setFilter(undefined); }} style={[s.primary, { flex: 0, backgroundColor: c.greenTint }]}><Text style={{ color: c.greenText, fontWeight: '700' }}>保存偏好</Text></Pressable></View>}
         {filter === 'history' && <View style={[s.filterOptions, { backgroundColor: c.surface, borderColor: c.line }]}><Text style={{ color: c.muted, fontSize: 12 }}>推荐优先避开近7天吃过的菜；全部吃过后轮换最早的一道。</Text>{history.some(entry => Date.now() - entry.at < WEEK) ? history.filter(entry => Date.now() - entry.at < WEEK).map(entry => <View key={entry.at} style={s.savedRow}><Text style={{ color: c.text, flex: 1 }}>{entry.meal.name}</Text><Text style={{ color: c.muted, fontSize: 12 }}>{new Date(entry.at).getMonth()+1}/{new Date(entry.at).getDate()} · {entry.people}人</Text></View>) : <Text style={{ color: c.muted, fontSize: 13 }}>吃完点“记为吃过”，下次少一点重复。</Text>}</View>}
-          </ScrollView>
-          <Pressable accessibilityRole="button" onPress={() => { if (filter === 'excluded') change({ ...prefs, excluded: parseExcluded(exclusionInput) }); setShowPreferences(false); }} style={[s.sheetDone, { backgroundColor: c.greenTint }]}><Text style={[s.buttonText, { color: c.greenText }]}>完成</Text></Pressable>
-        </SafeAreaView>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+          </BottomSheetScrollView>
+          <Pressable accessibilityRole="button" onPress={() => { if (filter === 'excluded') change({ ...prefs, excluded: parseExcluded(exclusionInput) }); preferenceSheet.current?.dismiss(); }} style={[s.sheetDone, { backgroundColor: c.greenTint, marginBottom: Math.max(insets.bottom, 12) }]}><Text style={[s.buttonText, { color: c.greenText }]}>完成</Text></Pressable>
+    </BottomSheetModal>
   </SafeAreaView>;
 }
 const s = StyleSheet.create({
-  headerActions: { flexDirection: 'row', gap: 6 }, modalRoot: { flex: 1 }, sheetPosition: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' }, preferenceSheet: { height: '70%', borderTopLeftRadius: 24, borderTopRightRadius: 24 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }, preferenceContent: { padding: 16, paddingTop: 8, gap: 10 }, sheetDone: { minHeight: 44, borderRadius: 12, marginHorizontal: 16, marginTop: 8, marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: 'row', gap: 6 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }, preferenceContent: { padding: 16, paddingTop: 8, gap: 10 }, sheetDone: { minHeight: 44, borderRadius: 12, marginHorizontal: 16, marginTop: 8, marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1 }, content: { padding: 16, gap: 12, paddingBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { fontSize: 24, fontWeight: '800' }, subtitle: { fontSize: 12, marginTop: 4 }, eyebrow: { fontSize: 12, fontWeight: '700' }, icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   controls: { gap: 8 }, filterRow: { flexDirection: 'row', gap: 6 }, filter: { flex: 1, minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 2 }, filterOptions: { padding: 10, gap: 8, borderWidth: 1, borderRadius: 14 }, chips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' }, chip: { borderWidth: 1, borderRadius: 10, minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
