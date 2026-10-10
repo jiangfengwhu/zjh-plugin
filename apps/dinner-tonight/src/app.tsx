@@ -130,9 +130,10 @@ export default function App() {
 
       <Text style={[s.footnote, { color: c.muted }]}>预算按人均筛选 · 用量为估算 · 调味按口味调整</Text>
     </ScrollView>
-    <Modal visible={showPreferences} transparent animationType="fade" onRequestClose={() => setShowPreferences(false)}>
-      <KeyboardAvoidingView style={s.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable accessibilityRole="button" accessibilityLabel="关闭个人偏好" onPress={() => setShowPreferences(false)} style={s.backdrop}/>
+    <Modal visible={showPreferences} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setShowPreferences(false)}>
+      <View style={s.modalRoot}>
+        <Pressable accessibilityRole="button" accessibilityLabel="点击遮罩关闭个人偏好" onPress={() => setShowPreferences(false)} style={s.backdrop}/>
+        <KeyboardAvoidingView pointerEvents="box-none" style={s.sheetPosition} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView edges={['bottom']} style={[s.preferenceSheet, { backgroundColor: c.surface }]}>
           <View style={s.sheetHeader}><View style={{ flex: 1 }}><Text style={[s.sectionTitle, { color: c.text, fontSize: 18 }]}>个人偏好</Text><Text style={[s.subtitle, { color: c.muted }]}>设置一次，下次推荐也会记得。</Text></View><Pressable accessibilityRole="button" accessibilityLabel="关闭个人偏好" onPress={() => setShowPreferences(false)} style={s.icon}><X size={21} color={c.muted}/></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.preferenceContent}>
@@ -145,12 +146,13 @@ export default function App() {
           </ScrollView>
           <Pressable accessibilityRole="button" onPress={() => { if (filter === 'excluded') change({ ...prefs, excluded: parseExcluded(exclusionInput) }); setShowPreferences(false); }} style={[s.sheetDone, { backgroundColor: c.greenTint }]}><Text style={[s.buttonText, { color: c.greenText }]}>完成</Text></Pressable>
         </SafeAreaView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   </SafeAreaView>;
 }
 const s = StyleSheet.create({
-  headerActions: { flexDirection: 'row', gap: 6 }, modalRoot: { flex: 1, justifyContent: 'flex-end' }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' }, preferenceSheet: { maxHeight: '85%', borderTopLeftRadius: 24, borderTopRightRadius: 24 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }, preferenceContent: { padding: 16, paddingTop: 8, gap: 10 }, sheetDone: { minHeight: 44, borderRadius: 12, marginHorizontal: 16, marginTop: 8, marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: 'row', gap: 6 }, modalRoot: { flex: 1 }, sheetPosition: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' }, backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' }, preferenceSheet: { height: '70%', borderTopLeftRadius: 24, borderTopRightRadius: 24 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }, preferenceContent: { padding: 16, paddingTop: 8, gap: 10 }, sheetDone: { minHeight: 44, borderRadius: 12, marginHorizontal: 16, marginTop: 8, marginBottom: 12, alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1 }, content: { padding: 16, gap: 12, paddingBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { fontSize: 24, fontWeight: '800' }, subtitle: { fontSize: 12, marginTop: 4 }, eyebrow: { fontSize: 12, fontWeight: '700' }, icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   controls: { gap: 8 }, filterRow: { flexDirection: 'row', gap: 6 }, filter: { flex: 1, minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 2 }, filterOptions: { padding: 10, gap: 8, borderWidth: 1, borderRadius: 14 }, chips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' }, chip: { borderWidth: 1, borderRadius: 10, minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
