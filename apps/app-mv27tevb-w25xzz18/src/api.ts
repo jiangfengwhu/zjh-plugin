@@ -1,38 +1,22 @@
 export interface Book {
-  id: number;
-  title: string;
-  authors: { name: string }[];
-  formats: Record<string, string>;
+  trackId: number;
+  trackName: string;
+  artistName: string;
+  artworkUrl100: string;
+  description?: string;
 }
 
 export interface SearchResult {
-  count: number;
-  next: string | null;
-  previous: string | null;
+  resultCount: number;
   results: Book[];
 }
 
 export async function searchBooks(query: string): Promise<Book[]> {
-  // If query contains Chinese characters, append &languages=zh
-  const hasChinese = /[\u4e00-\u9fa5]/.test(query);
-  let url = `https://gutendex.com/books/?search=${encodeURIComponent(query)}`;
-  if (hasChinese) {
-    url += '&languages=zh';
-  }
-
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=ebook&country=cn`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch books');
   }
   const data = await response.json() as SearchResult;
   return data.results;
-}
-
-export async function fetchBookText(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Failed to fetch book content');
-  }
-  const text = await response.text();
-  return text;
 }
