@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { getAppContext } from '@zijinhua/app-sdk';
-import { useTheme, Pressy, Button, Icon, EmptyState, RichMarkdown } from '@zijinhua/app-sdk/ui';
+import { useTheme, Pressy, Button, Icon, EmptyState, RichMarkdown, Loading } from '@zijinhua/app-sdk/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, searchBooks } from './api';
 
@@ -53,17 +53,26 @@ export default function App() {
     return (
       <Pressy onPress={() => setSelectedBook(item)} style={{ width: itemWidth, marginBottom: 16 }}>
         <View style={[styles.bookCoverContainer, { height: itemHeight, backgroundColor: theme.colors.surface, borderColor: theme.colors.line }]}>
-          <Image
-            source={{ uri: item.artworkUrl100.replace('100x100bb', '300x300bb') }} // try to get a slightly larger image
-            style={styles.bookCover}
-            resizeMode="cover"
-          />
+          {item.coverUrl ? (
+            <Image
+              source={{ uri: item.source === 'iTunes' ? item.coverUrl.replace('100x100bb', '300x300bb') : item.coverUrl }}
+              style={styles.bookCover}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.bookCover, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Icon name="box" color={theme.colors.muted} size={32} />
+            </View>
+          )}
         </View>
         <Text style={[styles.bookTitle, { color: theme.colors.text }]} numberOfLines={2}>
-          {item.trackName}
+          {item.title}
         </Text>
         <Text style={[styles.bookAuthor, { color: theme.colors.muted }]} numberOfLines={1}>
-          {item.artistName}
+          {item.author}
+        </Text>
+        <Text style={[styles.bookSource, { color: theme.colors.muted }]} numberOfLines={1}>
+          {item.source}
         </Text>
       </Pressy>
     );
@@ -97,21 +106,25 @@ export default function App() {
             <Button label="搜索" onPress={handleSearch} busy={loading} />
           </View>
 
-          <FlatList
-            data={books}
-            renderItem={renderBookItem}
-            keyExtractor={item => item.trackId.toString()}
-            numColumns={numColumns}
-            contentContainerStyle={styles.listContent}
-            columnWrapperStyle={{ gap: itemMargin }}
-            ListEmptyComponent={
-              !loading && query ? (
-                <EmptyState>
-                  <Text style={{ color: theme.colors.muted }}>未找到相关书籍</Text>
-                </EmptyState>
-              ) : undefined
-            }
-          />
+          {loading ? (
+             <Loading style={{ flex: 1 }} label="正在多源（iTunes 书城、Gutendex）并行搜索..." />
+          ) : (
+            <FlatList
+              data={books}
+              renderItem={renderBookItem}
+              keyExtractor={item => item.id}
+              numColumns={numColumns}
+              contentContainerStyle={styles.listContent}
+              columnWrapperStyle={{ gap: itemMargin }}
+              ListEmptyComponent={
+                !loading && query ? (
+                  <EmptyState>
+                    <Text style={{ color: theme.colors.muted }}>未找到相关书籍</Text>
+                  </EmptyState>
+                ) : undefined
+              }
+            />
+          )}
         </View>
       ) : (
         <View style={{ flex: 1, backgroundColor: theme.colors.canvas }}>
@@ -120,26 +133,32 @@ export default function App() {
               <Icon name="back" color={theme.colors.text} />
             </Pressy>
             <Text style={[styles.readerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-              {selectedBook.trackName}
+              {selectedBook.title}
             </Text>
             <View style={{ width: 40 }} />
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
              <View style={styles.detailCoverWrapper}>
-               <Image
-                 source={{ uri: selectedBook.artworkUrl100.replace('100x100bb', '600x600bb') }}
-                 style={{ width: 160, height: 240, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.line }}
-                 resizeMode="cover"
-               />
+               {selectedBook.coverUrl ? (
+                 <Image
+                   source={{ uri: selectedBook.source === 'iTunes' ? selectedBook.coverUrl.replace('100x100bb', '600x600bb') : selectedBook.coverUrl }}
+                   style={{ width: 160, height: 240, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.line }}
+                   resizeMode="cover"
+                 />
+               ) : (
+                 <View style={{ width: 160, height: 240, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.line, backgroundColor: theme.colors.surface, justifyContent: 'center', alignItems: 'center' }}>
+                    <Icon name="box" color={theme.colors.muted} size={48} />
+                 </View>
+               )}
              </View>
-             <Text style={[styles.detailTitle, { color: theme.colors.text }]}>{selectedBook.trackName}</Text>
-             <Text style={[styles.detailAuthor, { color: theme.colors.muted }]}>{selectedBook.artistName}</Text>
+             <Text style={[styles.detailTitle, { color: theme.colors.text }]}>{selectedBook.title}</Text>
+             <Text style={[styles.detailAuthor, { color: theme.colors.muted }]}>{selectedBook.author}</Text>
+             <Text style={[styles.detailSource, { color: theme.colors.muted, backgroundColor: theme.colors.surface }]}>来源: {selectedBook.source}</Text>
 
              <View style={[styles.divider, { backgroundColor: theme.colors.line }]} />
 
              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>简介</Text>
-             {/* iTunes description is often HTML */}
              {selectedBook.description ? (
                <RichMarkdown
                  markdown={selectedBook.description}
@@ -205,6 +224,10 @@ const styles = StyleSheet.create({
   },
   bookAuthor: {
     fontSize: 12,
+    marginBottom: 2,
+  },
+  bookSource: {
+    fontSize: 10,
   },
   readerHeader: {
     height: 56 + 40,
@@ -241,7 +264,17 @@ const styles = StyleSheet.create({
   detailAuthor: {
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  detailSource: {
+    fontSize: 14,
+    textAlign: 'center',
     marginBottom: 24,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignSelf: 'center',
+    overflow: 'hidden',
   },
   divider: {
     height: 1,
