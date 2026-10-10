@@ -3,7 +3,7 @@
   "description": "输入聊天场景，选择语气，由 AI 提供三个回复建议。一键复制，也能邀请朋友帮你挑。",
   "accent": "#9A75D3",
   "appId": "witty-reply",
-  "version": "1.0.0",
-  "releaseNotes": "首次发布：输入聊天场景，选择语气，由 AI 提供三个回复建议。一键复制，也能邀请朋友帮你挑。",
+  "version": "1.0.1",
+  "releaseNotes": "回复结果改为横划卡片，一键复制\n场景与语气收进底部面板",
   "moduleBase": 4500000
 }

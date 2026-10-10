@@ -3,7 +3,7 @@
   "description": "随手记录灵感和待办，本机保存便签与草稿，支持删除撤销、复制和分享。",
   "accent": "#C69A43",
   "appId": "pocket-note",
-  "version": "1.0.0",
-  "releaseNotes": "首次发布：随手记录灵感和待办，本机保存便签与草稿，支持删除撤销、复制和分享。",
+  "version": "1.0.1",
+  "releaseNotes": "便签分享改为打开社区动态编辑页",
   "moduleBase": 4400000
 }
