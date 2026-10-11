@@ -9,6 +9,6 @@
     "publish:application": "zjh-app publish"
   },
   "devDependencies": {
-    "@zijinhua/app-sdk": "2.2.8"
+    "@zijinhua/app-sdk": "2.2.9"
   }
 }

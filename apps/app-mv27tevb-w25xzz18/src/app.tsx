@@ -8,6 +8,7 @@ import {
   Image,
   useWindowDimensions,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { getAppContext } from '@zijinhua/app-sdk';
 import { useTheme, Pressy, Button, Icon, EmptyState, RichMarkdown, Loading } from '@zijinhua/app-sdk/ui';
@@ -43,6 +44,23 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExternalSearch = (engine: 'qidian' | 'baidu') => {
+    if (!query.trim()) {
+      getAppContext().toast.show('请输入书名', 'info');
+      return;
+    }
+    let url = '';
+    if (engine === 'qidian') {
+      url = `https://m.qidian.com/search?kw=${encodeURIComponent(query)}`;
+    } else if (engine === 'baidu') {
+      url = `https://www.baidu.com/s?wd=${encodeURIComponent(query + ' 小说 免费阅读')}`;
+    }
+
+    Linking.openURL(url).catch(() => {
+      getAppContext().toast.show('无法打开外部浏览器', 'error');
+    });
   };
 
   const handleBack = () => {
@@ -106,6 +124,12 @@ export default function App() {
             <Button label="搜索" onPress={handleSearch} busy={loading} />
           </View>
 
+          <View style={styles.externalLinksContainer}>
+            <Text style={{ color: theme.colors.muted, fontSize: 12, marginRight: 8 }}>或者全网找书:</Text>
+            <Button variant="outline" label="起点中文网" onPress={() => handleExternalSearch('qidian')} style={styles.externalBtn} />
+            <Button variant="outline" label="百度搜索" onPress={() => handleExternalSearch('baidu')} style={styles.externalBtn} />
+          </View>
+
           {loading ? (
              <Loading style={{ flex: 1 }} label="正在多源（iTunes 书城、Gutendex）并行搜索..." />
           ) : (
@@ -119,7 +143,7 @@ export default function App() {
               ListEmptyComponent={
                 !loading && query ? (
                   <EmptyState>
-                    <Text style={{ color: theme.colors.muted }}>未找到相关书籍</Text>
+                    <Text style={{ color: theme.colors.muted }}>应用内未找到相关书籍</Text>
                   </EmptyState>
                 ) : undefined
               }
@@ -194,7 +218,19 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     padding: 16,
+    paddingBottom: 8,
     gap: 12,
+  },
+  externalLinksContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  externalBtn: {
+    paddingHorizontal: 8,
+    height: 32,
   },
   searchInput: {
     flex: 1,
