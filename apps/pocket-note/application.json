@@ -1,9 +1,0 @@
-{
-  "appName": "口袋便签",
-  "description": "随手记录灵感和待办，本机保存便签与草稿，支持删除撤销、复制和分享。",
-  "accent": "#C69A43",
-  "appId": "pocket-note",
-  "version": "1.0.2",
-  "releaseNotes": "优化首屏信息层级、主要操作和紧凑布局\n编辑面板改为原生窗口内的 BottomSheet，避免路由层级影响\n适配深浅主题和底部安全区",
-  "moduleBase": 4400000
-}

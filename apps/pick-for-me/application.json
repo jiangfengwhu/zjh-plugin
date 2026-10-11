@@ -1,9 +1,0 @@
-{
-  "appName": "帮你选",
-  "description": "输入几个选项，一键随机帮你做轻松的小决定。支持常见场景和携带选项、结果的分享。",
-  "accent": "#E79245",
-  "appId": "pick-for-me",
-  "version": "1.0.2",
-  "releaseNotes": "优化首屏信息层级、主要操作和紧凑布局\n编辑面板改为原生窗口内的 BottomSheet，避免路由层级影响\n适配深浅主题和底部安全区",
-  "moduleBase": 4300000
-}

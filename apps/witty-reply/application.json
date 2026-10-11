@@ -1,9 +1,0 @@
-{
-  "appName": "妙回一句",
-  "description": "输入聊天场景，选择语气，由 AI 提供三个回复建议。一键复制，也能邀请朋友帮你挑。",
-  "accent": "#9A75D3",
-  "appId": "witty-reply",
-  "version": "1.0.2",
-  "releaseNotes": "优化首屏信息层级、主要操作和紧凑布局\n编辑面板改为原生窗口内的 BottomSheet，避免路由层级影响\n适配深浅主题和底部安全区",
-  "moduleBase": 4500000
-}

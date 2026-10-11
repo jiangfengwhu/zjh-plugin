@@ -1,9 +1,0 @@
-{
-  "appName": "一起投票",
-  "description": "创建问题与选项，分享邀请朋友参与。登录后加入开放协作房间，实时查看结果并修改自己的选择。",
-  "accent": "#548D75",
-  "appId": "together-vote",
-  "version": "1.0.2",
-  "releaseNotes": "优化首屏信息层级、主要操作和紧凑布局\n编辑面板改为原生窗口内的 BottomSheet，避免路由层级影响\n适配深浅主题和底部安全区",
-  "moduleBase": 4700000
-}
