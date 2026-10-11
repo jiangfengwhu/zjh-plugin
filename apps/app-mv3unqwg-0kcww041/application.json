@@ -1,0 +1,9 @@
+{
+  "appName": "3D工牌",
+  "description": "一个支持定制公司和人名的3D工牌应用",
+  "version": "1.0.1",
+  "releaseNotes": "修复未使用依赖和性能问题",
+  "accent": "#007bff",
+  "appId": "app-mv3unqwg-0kcww041",
+  "moduleBase": 5200000
+}
