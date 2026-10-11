@@ -1,15 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput } from 'react-native';
+import { View, Text, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { getAppContext } from '@zijinhua/app-sdk';
-import { useTheme, Button, ThemeProvider } from '@zijinhua/app-sdk/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function App() {
   const [company, setCompany] = useState('某某科技');
   const [name, setName] = useState('张三');
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
   const webviewRef = useRef<WebView>(null);
 
   React.useEffect(() => {
@@ -29,60 +26,113 @@ export default function App() {
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-        <style>body { margin: 0; overflow: hidden; background-color: #f0f0f0; }</style>
+        <style>body { margin: 0; overflow: hidden; background-color: #050510; }</style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
       </head>
       <body>
         <script>
           const scene = new THREE.Scene();
-          const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+          scene.fog = new THREE.FogExp2(0x050510, 0.05);
+
+          const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
           const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
           renderer.setSize(window.innerWidth, window.innerHeight);
+          renderer.setPixelRatio(window.devicePixelRatio);
           document.body.appendChild(renderer.domElement);
 
-          const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+          const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
           scene.add(ambientLight);
-          const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-          dirLight.position.set(5, 5, 5);
+
+          const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+          dirLight.position.set(5, 5, 10);
           scene.add(dirLight);
 
+          const light1 = new THREE.PointLight(0x00ffff, 2, 15);
+          scene.add(light1);
+
+          const light2 = new THREE.PointLight(0xff00ff, 2, 15);
+          scene.add(light2);
+
           const canvas = document.createElement('canvas');
-          canvas.width = 512;
-          canvas.height = 512;
+          canvas.width = 768; // 3:4 aspect ratio
+          canvas.height = 1024;
           const ctx = canvas.getContext('2d');
 
           let currentCompany = '某某科技';
           let currentName = '张三';
 
           const drawTexture = () => {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, 512, 512);
+            const bgGrad = ctx.createLinearGradient(0, 0, 768, 1024);
+            bgGrad.addColorStop(0, '#111122');
+            bgGrad.addColorStop(1, '#050510');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 768, 1024);
 
-            ctx.fillStyle = '#007bff';
-            ctx.fillRect(0, 0, 512, 100);
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 10;
+            ctx.strokeRect(20, 20, 728, 984);
 
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 40px sans-serif';
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.fillRect(20, 20, 728, 250);
+
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 50px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(currentCompany, 256, 65);
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 10;
+            ctx.fillText(currentCompany, 384, 180);
 
-            ctx.fillStyle = '#333333';
-            ctx.font = 'bold 80px sans-serif';
-            ctx.fillText(currentName, 256, 256);
+            ctx.beginPath();
+            ctx.moveTo(100, 270);
+            ctx.lineTo(668, 270);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
 
-            ctx.fillStyle = '#666666';
-            ctx.font = '30px sans-serif';
-            ctx.fillText('STAFF ID: ' + Math.floor(Math.random() * 1000000), 256, 400);
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 120px sans-serif';
+            ctx.fillText(currentName, 384, 550);
+
+            ctx.fillStyle = '#aaaaaa';
+            ctx.font = '40px sans-serif';
+            ctx.fillText('SPECIALIST', 384, 650);
+
+            ctx.fillStyle = '#ff00ff';
+            ctx.font = 'bold 35px monospace';
+            ctx.shadowColor = '#ff00ff';
+            ctx.shadowBlur = 8;
+            ctx.fillText('ID: ' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'), 384, 900);
+            ctx.shadowBlur = 0;
           };
 
           drawTexture();
 
           const texture = new THREE.CanvasTexture(canvas);
-          const geometry = new THREE.BoxGeometry(3, 4, 0.1);
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-          const sideMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc });
-          const frontMaterial = new THREE.MeshStandardMaterial({ map: texture });
-          const backMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+          const geometry = new THREE.BoxGeometry(4, 5.33, 0.15); // 3:4 aspect ratio
+
+          const sideMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x222222,
+            metalness: 0.9,
+            roughness: 0.2,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
+          });
+          const frontMaterial = new THREE.MeshPhysicalMaterial({
+            map: texture,
+            metalness: 0.2,
+            roughness: 0.1,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
+          });
+          const backMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x111122,
+            metalness: 0.5,
+            roughness: 0.5
+          });
 
           const materials = [
             sideMaterial, sideMaterial, sideMaterial, sideMaterial,
@@ -92,14 +142,18 @@ export default function App() {
           const badge = new THREE.Mesh(geometry, materials);
           scene.add(badge);
 
-          const clipGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.2, 32);
+          const clipGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.3, 32);
           clipGeo.rotateX(Math.PI / 2);
-          const clipMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+          const clipMat = new THREE.MeshPhysicalMaterial({
+            color: 0xdddddd,
+            metalness: 1.0,
+            roughness: 0.2
+          });
           const clip = new THREE.Mesh(clipGeo, clipMat);
-          clip.position.set(0, 2, 0);
+          clip.position.set(0, 2.66, 0);
           badge.add(clip);
 
-          camera.position.z = 6;
+          camera.position.z = 8;
 
           let isDragging = false;
           let previousMousePosition = { x: 0, y: 0 };
@@ -117,15 +171,33 @@ export default function App() {
               };
               badge.rotation.y += deltaMove.x * 0.01;
               badge.rotation.x += deltaMove.y * 0.01;
+
+              badge.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, badge.rotation.x));
+
               previousMousePosition = { x: e.clientX, y: e.clientY };
             }
           });
 
+          const clock = new THREE.Clock();
+
           const animate = function () {
             requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+
             if (!isDragging) {
-              badge.rotation.y += 0.01;
+              badge.rotation.y = Math.sin(time * 0.5) * 0.2;
+              badge.rotation.x = Math.cos(time * 0.3) * 0.1;
             }
+
+            light1.position.x = Math.sin(time * 1.5) * 5;
+            light1.position.y = Math.cos(time * 1.2) * 5;
+            light1.position.z = Math.sin(time * 0.8) * 4 + 4;
+
+            light2.position.x = Math.cos(time * 1.3) * 6;
+            light2.position.y = Math.sin(time * 1.7) * 6;
+            light2.position.z = Math.cos(time * 0.9) * 4 + 4;
+
             renderer.render(scene, camera);
           };
 
@@ -149,35 +221,76 @@ export default function App() {
   `;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.canvas }}>
-      <View style={{ paddingTop: insets.top, backgroundColor: theme.colors.surface, paddingBottom: 10 }}>
-        <View style={{ paddingHorizontal: 20 }}>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', marginVertical: 10, color: theme.colors.text }}>3D 工牌定制</Text>
-          <TextInput
-            value={company}
-            onChangeText={setCompany}
-            placeholder="公司名称"
-            placeholderTextColor={theme.colors.muted}
-            style={{ borderWidth: 1, borderColor: theme.colors.line, padding: 10, marginBottom: 10, borderRadius: theme.colors.radius.md, color: theme.colors.text }}
-          />
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="员工姓名"
-            placeholderTextColor={theme.colors.muted}
-            style={{ borderWidth: 1, borderColor: theme.colors.line, padding: 10, borderRadius: theme.colors.radius.md, color: theme.colors.text }}
-          />
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#050510' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={{ flex: 1 }}>
+        <WebView
+          ref={webviewRef}
+          source={{ html }}
+          style={{ flex: 1, backgroundColor: 'transparent' }}
+          originWhitelist={['*']}
+          javaScriptEnabled={true}
+          scrollEnabled={false}
+          bounces={false}
+        />
+
+        <View style={{
+          position: 'absolute',
+          bottom: insets.bottom + 20,
+          left: 20,
+          right: 20,
+          backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          borderRadius: 20,
+          padding: 20,
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.3)',
+        }}>
+          <Text style={{
+            fontSize: 18,
+            fontWeight: '600',
+            marginBottom: 15,
+            color: '#fff',
+            textAlign: 'center'
+          }}>定制专属工牌</Text>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+            <TextInput
+              value={company}
+              onChangeText={setCompany}
+              placeholder="公司名称"
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              style={{
+                flex: 1,
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                padding: 12,
+                borderRadius: 12,
+                color: '#fff',
+                fontSize: 16
+              }}
+            />
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="员工姓名"
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              style={{
+                flex: 1,
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                padding: 12,
+                borderRadius: 12,
+                color: '#fff',
+                fontSize: 16
+              }}
+            />
+          </View>
         </View>
       </View>
-      <WebView
-        ref={webviewRef}
-        source={{ html }}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
-        originWhitelist={['*']}
-        javaScriptEnabled={true}
-        scrollEnabled={false}
-        bounces={false}
-      />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
