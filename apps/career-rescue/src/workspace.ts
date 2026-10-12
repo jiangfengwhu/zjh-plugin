@@ -36,18 +36,18 @@ export function saveJob(input: Job, account = owner()) {
     const job = { ...input, updatedAt: Date.now(), ...(invalidate ? { reminderId: undefined, reminderAt: undefined } : {}) };
     return { ...s, jobs: [job, ...s.jobs.filter(j => j.id !== job.id)].slice(0, 100) };
   }, account);
-  if (cancel) void app.phone.cancelSchedule(cancel).then(result => { if (!result.ok && owner() === account) app.toast.show('记录已保存，但旧提醒取消失败，请检查通知', 'error'); });
+  if (cancel) void app.phone.cancelSchedule(cancel).then(result => { if (!result.ok && owner() === account) app.toast.show('记录已保存，但旧提醒取消失败，请检查通知', 'error'); }).catch(() => { if (owner() === account) app.toast.show('旧提醒取消失败，请检查通知', 'error'); });
 }
 export function removeJob(id: string, account = owner()) {
   const job = getWorkspace().jobs.find(j => j.id === id);
   updateWorkspace(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== id) }), account);
-  if (job?.reminderId && owner() === account) void app.phone.cancelSchedule(job.reminderId).then(result => { if (!result.ok && owner() === account) app.toast.show('记录已删除，但提醒取消失败，请检查通知', 'error'); });
+  if (job?.reminderId && owner() === account) void app.phone.cancelSchedule(job.reminderId).then(result => { if (!result.ok && owner() === account) app.toast.show('记录已删除，但提醒取消失败，请检查通知', 'error'); }).catch(() => { if (owner() === account) app.toast.show('记录已删除，但提醒取消失败，请检查通知', 'error'); });
 }
 export function clearWorkspace(account = owner()) {
   if (account !== owner()) return;
   const ids = getWorkspace().jobs.flatMap(j => j.reminderId ? [j.reminderId] : []);
   updateWorkspace(() => ({ resume: '', resumeAt: 0, review: null, versions: [], jobs: [] }), account);
-  for (const id of ids) void app.phone.cancelSchedule(id);
+  if (ids.length) void Promise.allSettled(ids.map(id => app.phone.cancelSchedule(id))).then(results => { if (owner() === account && results.some(r => r.status === 'rejected' || !r.value.ok)) app.toast.show('本机记录已清空，部分提醒取消失败，请检查系统通知', 'error'); });
 }
 export function blankJob(company = '', title = '', jd = ''): Job { return { id: uniqueId(), company, title, jd, url: '', stage: '想投', nextStep: '', nextAt: null, note: '', createdAt: Date.now(), updatedAt: Date.now() }; }
 

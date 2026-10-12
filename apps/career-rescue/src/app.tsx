@@ -152,7 +152,7 @@ export default function CareerRescue() {
   useEffect(() => app.phone.onNotification(event => {
     if (event.params.account !== account || owner() !== account) return;
     if (event.action === 'open' && typeof event.params.job === 'string' && getWorkspace().jobs.some(j => j.id === event.params.job)) { setJobRequest({ id: event.params.job, at: Date.now() }); visit(2); }
-    void app.phone.acknowledgeNotification(event.token);
+    void app.phone.acknowledgeNotification(event.token).catch(() => {});
   }), [account, visit]);
   useEffect(() => { if (previousAccount.current !== account) { previousAccount.current = account; modal.current?.dismiss(); setSheet(null); } }, [account]);
   useEffect(() => {

@@ -42,5 +42,5 @@ export function AiResult({ ai, c }: { ai: ReturnType<typeof useAi>; c: Palette }
 export function AiPrivacy() {
   const c = usePalette(), { aiAllowed } = useCareer();
   if (aiAllowed) return null;
-  return <View style={{ marginHorizontal: 16, marginVertical: 8, padding: 12, borderRadius: 14, backgroundColor: c.wash, gap: 8 }}><Text style={[styles.small, { color: c.text }]}>记录保存在本机。使用 AI 时，相关经历、JD 和回答会发送给你配置的 AI 服务；请先删去联系方式、保密项目等信息。语音识别也可能联网。</Text><Action label="我已了解，允许使用 AI" subtle onPress={() => updateState(s => ({ ...s, aiAllowed: true }))} /></View>;
+  return <View style={{ padding: 8, borderRadius: 8, backgroundColor: c.wash, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={[styles.small, { color: c.text, flex: 1 }]}>资料与回答将发给你配置的AI，请先去掉私密信息。</Text><Action label="允许AI处理" subtle onPress={() => updateState(s => ({ ...s, aiAllowed: true }))} /></View>;
 }
