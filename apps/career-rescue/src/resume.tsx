@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Image, Keyboard, Modal, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Pdf from 'react-native-pdf';
-import { Copy, Eye, FileUp, Sparkles, Square, X } from 'lucide-react-native';
+import { Copy, Eye, FilePenLine, FileUp, Gauge, Sparkles, Square, X } from 'lucide-react-native';
 import type { AiAttachment } from '@zijinhua/app-sdk';
 import { app, copy, data, inputKey, owner, readState, readTarget, uid, updateState, useField, useTarget } from './model';
 import { matching, useCatalog } from './content-api';
@@ -17,7 +17,7 @@ const Preview = memo(function Preview({ file, text, onClose }: { file: ResumeFil
 });
 export const Resume = memo(function Resume({ active }: { active: boolean }) {
   const c = usePalette(), work = useField('resume'), target = useTarget(), catalog = useCatalog(), ai = useAi(active), account = owner();
-  const [text, setText] = useState(work.text), [editor, setEditor] = useState(false), [preview, setPreview] = useState(false), [formExpanded, setFormExpanded] = useState(!work.diagnosis && !work.improved), [resultTab, setResultTab] = useState<'diagnosis' | 'improved'>('diagnosis'), [runKind, setRunKind] = useState<'diagnosis' | 'improved'>('diagnosis'), [status, setStatus] = useState(''), [error, setError] = useState('');
+  const [text, setText] = useState(work.text), [editor, setEditor] = useState(false), [preview, setPreview] = useState(false), [resultTab, setResultTab] = useState<'diagnosis' | 'improved'>('diagnosis'), [runKind, setRunKind] = useState<'diagnosis' | 'improved'>('diagnosis'), [status, setStatus] = useState(''), [error, setError] = useState('');
   const dirty = useRef(false), latest = useRef(text), operation = useRef<AbortController | null>(null), editSequence = useRef(0), generating = useRef(false), previousTarget = useRef(JSON.stringify(target));
   latest.current = text;
   const save = useCallback(() => { if (!dirty.current) return; updateState(state => ({ ...state, resume: { ...state.resume, text: latest.current } }), account); dirty.current = false; }, [account]);
@@ -49,7 +49,7 @@ export const Resume = memo(function Resume({ active }: { active: boolean }) {
     }
   };
   const upload = async () => {
-    if (operation.current) return; save(); ai.clear(); setError(''); setFormExpanded(true);
+    if (operation.current) return; save(); ai.clear(); setError('');
     const token = new AbortController(); operation.current = token; setStatus('选择文件');
     try {
       const path = 'resume/' + uid(), result = await data.files.importFile(path, { mime: '*/*', maxBytes: 20 * 1024 * 1024, signal: token.signal });
@@ -67,17 +67,11 @@ export const Resume = memo(function Resume({ active }: { active: boolean }) {
     } catch (e) { if (!token.signal.aborted && account === owner()) setError(e instanceof Error ? e.message : '上传失败'); }
     finally { if (operation.current === token) { operation.current = null; setStatus(''); } }
   };
-  const parseAgain = async () => {
-    if (!work.file || operation.current) return;
-    const token = new AbortController(); operation.current = token; setError('');
-    try { await parse(work.file, token); } catch (e) { if (!token.signal.aborted) setError(e instanceof Error ? e.message : '解析失败'); }
-    finally { if (operation.current === token) { operation.current = null; setStatus(''); } }
-  };
   const generate = async (kind: 'diagnosis' | 'improved') => {
     if (operation.current || ai.busy) return; save(); Keyboard.dismiss(); setError(''); setResultTab(kind); setRunKind(kind); ai.clear();
     const source = readState().resume, currentTarget = readTarget(), sourceText = latest.current, sourceJd = currentTarget.jd, sendFile = !sourceText.trim() && !!source.file;
     if (!sendFile && sourceText.trim().length < 30) { setEditor(true); setError('先上传简历，或粘贴至少一段真实经历'); return; }
-    setFormExpanded(false); generating.current = true;
+     generating.current = true;
     const mark = inputKey(JSON.stringify([sourceText, source.file?.path]), currentTarget);
     const token = new AbortController(); operation.current = token;
     try {
@@ -109,12 +103,9 @@ export const Resume = memo(function Resume({ active }: { active: boolean }) {
   const exportReport = async () => { try { const path = 'resume/result.md'; await data.files.writeText(path, report); if (account !== owner()) return; const result = await data.files.exportFile(path, { name: resultTab === 'diagnosis' ? '简历诊断.md' : 'STAR简历.md', mime: 'text/markdown' }); if (!result.ok && result.code !== 'CANCELLED') throw new Error(result.error); } catch (e) { setError(e instanceof Error ? e.message : '导出失败'); } };
   return <><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
     <View><Text style={[s.title, { color: c.text }]}>诊断问题，改成有说服力的经历</Text><Text style={[s.small, { color: c.muted }]}>上传 → 预览 / 解析 → 诊断 → STAR 改造</Text></View>
-    {formExpanded ? <><Card><View style={s.spread}><View style={{ flex: 1 }}><Text numberOfLines={2} style={[s.heading, { color: c.text }]}>{work.file?.name || '上传你的简历'}</Text><Text style={[s.small, { color: c.muted }]}>{work.file ? `${(work.file.bytes / 1024).toFixed(0)} KB · ${work.file.kind.toUpperCase()} · 本机保存` : 'PDF / Word / TXT / 图片，最大20MB'}</Text></View>{work.file ? <IconButton label="预览简历" onPress={() => setPreview(true)}><Eye size={21} color={c.accent} /></IconButton> : null}</View><View style={s.row}><Button label={status || (work.file ? '重新上传' : '上传简历')} busy={!!status} disabled={ai.busy} icon={<FileUp size={17} color={c.onAccent} />} onPress={() => void upload()} style={{ flex: 1 }} /><Button label="粘贴 / 编辑正文" subtle onPress={() => setEditor(true)} style={{ flex: 1 }} /></View>
-      {work.file && !text.trim() && !status ? <Button label="重新解析正文" subtle onPress={() => void parseAgain()} disabled={ai.busy} /> : null}
-      <Text style={[s.small, { color: c.muted }]}>{text.trim() ? `已提取 ${text.length} 字，生成时发送正文。` : work.file ? '未提取到正文，生成时自动发送原文件（需模型支持）。' : '上传后自动提取正文；无法解析时自动使用原文件。'}</Text>
+    <Card><View style={{ gap: 4 }}><Text numberOfLines={2} style={[s.heading, { color: c.text }]}>{work.file?.name || (text.trim() ? '已粘贴简历正文' : '上传或粘贴你的简历')}</Text><Text style={[s.small, { color: c.muted }]}>{status || (work.file ? `${(work.file.bytes / 1024).toFixed(0)} KB · ${text.trim() ? `已提取 ${text.length} 字` : '自动使用原文件'}` : text.trim() ? `${text.length} 字` : 'PDF / Word / TXT / 图片，最大20MB')}{target.jd.trim() ? ' · 已提供 JD' : ''}</Text></View>
+      <View style={s.spread}><View style={s.row}><IconButton label={work.file ? '重新上传简历' : '上传简历'} busy={!!status} disabled={ai.busy} onPress={() => void upload()}><FileUp size={18} color={c.accent} /></IconButton><IconButton label="预览简历" disabled={!work.file} onPress={() => setPreview(true)}><Eye size={18} color={c.accent} /></IconButton><IconButton label="调整输入：编辑简历正文" onPress={() => setEditor(true)}><FilePenLine size={18} color={c.accent} /></IconButton></View><View style={s.row}><IconButton label="AI 打分与诊断" primary busy={ai.busy && runKind === 'diagnosis'} disabled={!!status || ai.busy && runKind !== 'diagnosis'} onPress={() => void generate('diagnosis')}><Gauge size={18} color={c.onAccent} /></IconButton><IconButton label="一键 STAR 润色" selected busy={ai.busy && runKind === 'improved'} disabled={!!status || ai.busy && runKind !== 'improved'} onPress={() => void generate('improved')}><Sparkles size={18} color={c.accent} /></IconButton></View></View>
     </Card>
-    </> : <Card><View style={s.spread}><View style={{ flex: 1 }}><Text numberOfLines={1} style={[s.heading, { color: c.text }]}>{work.file?.name || "已粘贴简历正文"}</Text><Text style={[s.small, { color: c.muted }]}>{status || `${text.length} 字 · ${target.jd.trim() ? "已提供JD" : "未提供JD"} · ${text.trim() ? "正文输入" : "文件输入"}`}</Text></View>{work.file ? <IconButton label="预览简历" onPress={() => setPreview(true)}><Eye size={20} color={c.accent} /></IconButton> : null}<Button label="调整输入" subtle onPress={() => setFormExpanded(true)} /></View></Card>}
-    <View style={s.row}><Button label="AI 打分与诊断" busy={ai.busy && runKind === 'diagnosis'} disabled={!!status || ai.busy && runKind !== 'diagnosis'} onPress={() => void generate('diagnosis')} style={{ flex: 1 }} /><Button label="一键 STAR 润色" busy={ai.busy && runKind === 'improved'} disabled={!!status || ai.busy && runKind !== 'improved'} icon={<Sparkles size={16} color={c.onAccent} />} onPress={() => void generate('improved')} style={{ flex: 1 }} /></View>
     <Text style={[s.small, { color: c.muted }]}>内容发送至你配置的 AI。评分是训练参考，不代表企业筛选结果；润色依据真实经历和已收录语料。</Text><ErrorText text={error || ai.error} />{ai.error ? <Button label="配置 AI 引擎" subtle onPress={() => app.ai.openSettings()} /> : null}
     {report || ai.busy || work.diagnosis || work.improved ? <Card><View style={s.spread}><View style={s.chips}><Chip label="诊断报告" selected={resultTab === 'diagnosis'} onPress={() => setResultTab('diagnosis')} /><Chip label="STAR 改造" selected={resultTab === 'improved'} onPress={() => setResultTab('improved')} /></View>{ai.busy ? <IconButton label="停止生成" onPress={() => { operation.current?.abort(); ai.cancel(); }}><Square size={18} color={c.accent} /></IconButton> : report ? <IconButton label="复制输出" onPress={() => copy(report)}><Copy size={19} color={c.accent} /></IconButton> : null}</View>
       {score && Number(score) <= 100 ? <View style={[s.row, { alignItems: 'center', paddingVertical: 4, minHeight: 52 }]}><Text style={{ fontSize: 28, lineHeight: 40, includeFontPadding: true, fontWeight: '800', color: c.accent }}>{score}</Text><Text style={[s.small, { color: c.muted }]}>/ 100 · AI 参考评分</Text></View> : null}
