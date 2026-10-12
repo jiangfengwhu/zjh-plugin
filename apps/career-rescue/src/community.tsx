@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import { FlashList } from '@shopify/flash-list';
 import { Bookmark, ChevronRight, RefreshCw, Search } from 'lucide-react-native';
-import { app, updateState, useField } from './model';
+import { app, updateState, useField, useTarget } from './model';
 import { refreshContent, useContent } from './content-api';
 import { Button, Card, Chip, Empty, ErrorText, IconButton, Markdown, Sheet, s, usePalette } from './ui';
 import type { ContentItem } from './types';
@@ -13,7 +13,7 @@ const itemKey = (item: { id: string }) => item.id;
 const QuestionRow = memo(function QuestionRow({ item, saved, onOpen }: { item: ContentItem; saved: boolean; onOpen: (item: ContentItem) => void }) { const c = usePalette(); return <Pressable accessibilityRole="button" onPress={() => onOpen(item)} style={({ pressed }) => ({ padding: 13, marginBottom: 9, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 12, gap: 6, opacity: pressed ? .7 : 1 })}><View style={s.spread}><Text style={[s.small, { color: c.accent, flex: 1 }]}>{item.company || '通用岗位'} · {item.provenance === '示例' ? '训练题' : item.provenance}</Text>{saved ? <Bookmark size={15} color={c.accent} fill={c.accent} /> : <ChevronRight size={17} color={c.muted} />}</View><Text numberOfLines={3} style={[s.heading, { color: c.text }]}>{item.question || item.title}</Text><Text numberOfLines={2} style={[s.small, { color: c.muted }]}>{item.body.replace(/[#*_`]/g, '')}</Text><Text style={[s.small, { color: c.muted }]}>{item.roles.join(' / ') || '通用'} · {item.interviewDate ? `面试 ${item.interviewDate}` : `更新 ${item.updatedAt}`}</Text></Pressable>; });
 const RiskRow = memo(function RiskRow({ item, index, onOpen }: { item: RiskGroup; index: number; onOpen: (item: RiskGroup) => void }) { const c = usePalette(); return <Pressable accessibilityRole="button" onPress={() => onOpen(item)} style={({ pressed }) => ({ padding: 13, marginBottom: 9, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 12, gap: 7, opacity: pressed ? .7 : 1 })}><View style={s.row}><Text style={{ width: 24, fontSize: 19, fontWeight: '800', color: c.muted }}>{index + 1}</Text><View style={{ flex: 1 }}><Text style={[s.heading, { color: c.text }]}>{item.company}</Text><Text style={[s.small, { color: c.muted }]}>收录反馈 {item.count} 条 · {item.reports.length} 个来源条目</Text></View><ChevronRight size={18} color={c.muted} /></View><Text numberOfLines={2} style={[s.body, { color: c.text }]}>{item.reports.map(r => r.title).join(' · ')}</Text><Text style={[s.small, { color: c.danger }]}>最高反馈风险等级：{item.severity === 3 ? '高' : item.severity === 2 ? '中' : '低'}</Text></Pressable>; });
 export const Community = memo(function Community({ onPractice }: { onPractice: (item: ContentItem) => void }) {
-  const c = usePalette(), target = useField('target'), saved = useField('saved'), { catalog, error } = useContent();
+  const c = usePalette(), target = useTarget(), saved = useField('saved'), { catalog, error } = useContent();
   const [page, setPage] = useState(0), [query, setQuery] = useState(''), [mine, setMine] = useState(false), [refreshing, setRefreshing] = useState(false), [question, setQuestion] = useState<ContentItem | null>(null), [risk, setRisk] = useState<RiskGroup | null>(null);
   const pager = useRef<PagerView>(null);
   const select = (index: number) => { setPage(index); pager.current?.setPage(index); };
