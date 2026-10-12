@@ -26,7 +26,7 @@ export const checklist = [
   { id: 'jd', title: '看懂岗位要求', detail: '找出三个关键词，分别对应一条自己的真实经历。', action: 'profile' },
   { id: 'intro', title: '准备 60 秒自我介绍', detail: '我是谁 → 我做过什么 → 为什么适合。', action: 'intro' },
   { id: 'story', title: '整理一个拿得出手的故事', detail: '背景、任务、行动、结果；重点是你做了什么。', action: 'project' },
-  { id: 'practice', title: '练三道常见问题', detail: '先自己回答，再看框架，补齐薄弱点。', action: 'practice' },
+  { id: 'practice', title: '练一轮，重答最薄弱的一题', detail: '自我介绍、经历追问、岗位题、动机与反问；最后验证改进。', action: 'practice' },
   { id: 'ask', title: '准备两句反问', detail: '问真实任务、团队协作和新人评价方式。', action: 'ask' },
   { id: 'logistics', title: '确认时间、地点与设备', detail: '线上测试麦克风；线下查路线，留出缓冲。', action: 'logistics' },
 ] as const;

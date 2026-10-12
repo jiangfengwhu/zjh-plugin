@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, ActivityIndicator, Animated, Keyboard, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { AppState, Alert, Animated, Keyboard, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PagerView from 'react-native-pager-view';
 import { useIsFocused } from '@react-navigation/native';
@@ -8,9 +8,12 @@ import { BottomSheetModal, BottomSheetModalProvider, BottomSheetBackdrop, Bottom
 import { ArrowDownToLine, ArrowRight, Bookmark, BriefcaseBusiness, Check, ChevronRight, Copy, FileText, Lightbulb, Mic, Settings2, Share2, Sparkles, Square } from 'lucide-react-native';
 import type { ShareParams } from '@zijinhua/app-sdk';
 import { checklist, questions, resources, roles, type Resource } from './content';
-import { app, data, owner, copy, draftIntro, toggleCheck, updateState, useCareer, type Profile } from './model';
+import { app, data, owner, copy, draftIntro, toggleCheck, updateState, useCareer, roleName, aiProfile, profileContext, type Profile } from './model';
 import { Action, Card, IconAction, styles, usePalette, type Palette } from './ui';
 import { startSpeechSession, type SpeechSession } from './speech-session';
+import { useAi, AiResult, AiPrivacy } from './coach';
+import { Interview } from './interview';
+import { QuickCard } from './quick-card';
 
 const AnimatedPager = Animated.createAnimatedComponent(PagerView);
 const tabs = ['今晚准备', '面试练习', '资料袋'];
@@ -23,60 +26,51 @@ const share = (params?: ShareParams, title = '求职急救站') => { void app.sh
 const fieldStyle = (c: Palette) => [styles.field, { color: c.text, backgroundColor: c.field, borderColor: c.line }];
 const Section = ({ title, note, c }: { title: string; note?: string; c: Palette }) => <View style={{ flexShrink: 1, gap: 4 }}><Text style={[styles.heading, { color: c.text }]}>{title}</Text>{note ? <Text style={[styles.small, { color: c.muted }]}>{note}</Text> : null}</View>;
 
-function useAi(active = true) {
-  const [busy, setBusy] = useState(false), [output, setOutput] = useState(''), [error, setError] = useState('');
-  const request = useRef<AbortController | null>(null);
-  const cancel = useCallback(() => { request.current?.abort(); request.current = null; setBusy(false); }, []);
-  useEffect(() => { if (!active) cancel(); return cancel; }, [active, cancel]);
-  useEffect(() => app.auth.subscribe(() => { cancel(); setOutput(''); setError(''); }), [cancel]);
-  const run = useCallback(async (instruction: string, input: string) => {
-    if (request.current) return;
-    const controller = new AbortController(), account = owner(); request.current = controller;
-    setBusy(true); setError(''); setOutput('');
-    try {
-      const result = await app.ai.stream({ messages: [
-        { role: 'system', content: '你是务实、友善的应届生求职教练。只依据用户提供的真实信息，不捏造学校、经历、数字、公司情况或招聘结果。缺失信息用明确占位符或标为待确认。给可以实际执行的建议，不打虚假的分数，不保证录用。用简洁中文、小标题与短段落，不使用表格。' + instruction },
-        { role: 'user', content: input },
-      ], temperature: .5, maxTokens: 1600 }, { signal: controller.signal, onText: text => { if (!controller.signal.aborted && account === owner()) setOutput(text); } });
-      if (controller.signal.aborted || account !== owner()) return;
-      if (!result.ok) { setError(result.error); if (result.code === 'NOT_CONFIGURED') app.ai.openSettings(); } else setOutput(result.text);
-    } catch (e) { if (!controller.signal.aborted && account === owner()) setError(e instanceof Error ? e.message : '生成失败'); }
-    finally { if (request.current === controller) { request.current = null; setBusy(false); } }
-  }, []);
-  const clear = useCallback(() => { cancel(); setOutput(''); setError(''); }, [cancel]);
-  return { busy, output, error, run, cancel, clear };
-}
-function AiResult({ ai, c }: { ai: ReturnType<typeof useAi>; c: Palette }) {
-  if (!ai.busy && !ai.output && !ai.error) return null;
-  return <Card><View style={styles.spread}><View style={styles.row}><Sparkles size={18} color={c.primary} /><Text style={[styles.heading, { color: c.text }]}>教练建议</Text></View>{ai.busy ? <IconAction label="停止生成" onPress={ai.cancel}><Square size={17} color={c.text} /></IconAction> : ai.output ? <IconAction label="复制建议" onPress={() => copy(ai.output)}><Copy size={19} color={c.text} /></IconAction> : null}</View>
-    {ai.busy && !ai.output ? <View style={styles.row}><ActivityIndicator color={c.primary} /><Text style={[styles.small, { color: c.muted }]}>正在整理，可以随时停止</Text></View> : null}
-    {ai.output ? <Text selectable style={[styles.body, { color: c.text }]}>{ai.output}</Text> : null}
-    {ai.error ? <Text style={[styles.body, { color: c.orange }]}>{ai.error}。输入已保留，可再次尝试。</Text> : null}
-  </Card>;
-}
 function ProfileEditor({ profile, onSave, c }: { profile: Profile; onSave: (p: Profile) => void; c: Palette }) {
   const [draft, setDraft] = useState(profile);
-  const field = (key: keyof Profile, label: string, placeholder: string, limit: number, multiline = false) => <View><Text style={[styles.label, { color: c.text }]}>{label}</Text><BottomSheetTextInput style={[fieldStyle(c), multiline && { minHeight: 112 }]} placeholder={placeholder} placeholderTextColor={c.muted} multiline={multiline} maxLength={limit} value={draft[key]} onChangeText={text => setDraft(p => ({ ...p, [key]: text }))} /></View>;
+  const [details, setDetails] = useState(false);
+  const state = useCareer(), account = owner();
+  const field = (key: keyof Profile, label: string, placeholder: string, limit: number, multiline = false) => <View><Text style={[styles.label, { color: c.text }]}>{label}</Text><BottomSheetTextInput accessibilityLabel={label} style={[fieldStyle(c), multiline && { minHeight: 112 }]} placeholder={placeholder} placeholderTextColor={c.muted} multiline={multiline} maxLength={limit} value={draft[key]} onChangeText={text => setDraft(p => ({ ...p, [key]: text }))} /></View>;
   return <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
     <Section c={c} title="这次面试" note="写到哪算哪，随时可以补充。内容保存在当前账号本机。" />
     <Text style={[styles.label, { color: c.text }]}>目标方向</Text><View style={styles.chips}>{roles.map(role => <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.role === role }} key={role} onPress={() => setDraft(p => ({ ...p, role }))} style={({ pressed }) => [styles.chip, { backgroundColor: draft.role === role ? c.primary : c.field, borderColor: draft.role === role ? c.primary : c.line, opacity: pressed ? .7 : 1 }]}><Text style={{ color: draft.role === role ? c.onPrimary : c.text }}>{role}</Text></Pressable>)}</View>
-    {field('name', '怎么称呼你', '姓名或昵称，可不填', 40)}{field('background', '当前背景', '例如：应届生 / 计算机专业', 300)}
+    {field('target', '具体岗位（可选）', '例如：新媒体运营 / 行政助理 / 销售', 80)}
     {field('experience', '一段真实经历', '课程项目、实习、社团或个人作品。写清你做了什么、实际结果是什么。', 4000, true)}
+    {field('concern', '最担心被问到什么？（可选）', '没有相关实习、转行原因、项目没亮点，或粘贴上次没答好的题。', 600, true)}
     {field('jd', '岗位描述（可选）', '粘贴职位要求，AI 会据此判断匹配点和准备重点。', 6000, true)}
+    <Action label={details ? '收起其他信息' : '补充公司、轮次和背景（可选）'} subtle onPress={() => setDetails(v => !v)} />
+    {details ? <>{field('company', '面试公司（可选）', '只用于区分准备记录，不生成公司事实', 80)}{field('round', '这次交流的类型', '例如：HR 电话 / 一面 / 二面 / 终面', 40)}{field('name', '怎么称呼你', '姓名或昵称，可不填', 40)}{field('background', '当前背景', '例如：应届生 / 在职转行 / 6 年运营经验', 300)}</> : null}
+    <Text style={[styles.small, { color: c.muted }]}>只填你愿意用于练习的内容。AI 处理时会发送相关资料，请先去掉联系方式、客户姓名和保密信息。修改资料后请重新核对旧版自我介绍；进行中的陪练保留开始时的背景。</Text>
     <Action label="保存，开始准备" icon={<Check size={18} color={c.onPrimary} />} onPress={() => { Keyboard.dismiss(); onSave(draft); }} />
+    <Action label={state.aiAllowed ? '停止允许 AI 处理资料' : '我已了解数据说明，允许使用 AI'} subtle onPress={() => updateState(s => ({ ...s, aiAllowed: !s.aiAllowed }), account)} />
+    <Action label="清空本机准备记录" subtle onPress={() => Alert.alert('清空准备记录？', '将删除本账号的经历、回答、介绍、清单、复盘和收藏。已自行导出的文件不会被删除。', [{ text: '取消', style: 'cancel' }, { text: '清空', style: 'destructive', onPress: () => { updateState(s => ({ ...s, profile: { ...s.profile, name: '', company: '', experience: '', background: '', jd: '', concern: '' }, answers: {}, intro: '', checked: [], saved: [], plan: null, session: null, history: [], aiAllowed: false }), account); onSave({ ...draft, name: '', company: '', experience: '', background: '', jd: '', concern: '' }); } }])} />
   </BottomSheetScrollView>;
 }
-const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onPractice, onIntro, onResource }: { profile: Profile; checked: string[]; active: boolean; onProfile: () => void; onPractice: (id?: string) => void; onIntro: () => void; onResource: (id: string) => void }) {
-  const c = usePalette(), ai = useAi(active);
+const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onPractice, onInterview, onQuick, onIntro, onResource }: { profile: Profile; checked: string[]; active: boolean; onProfile: () => void; onPractice: (id?: string) => void; onInterview: () => void; onQuick: () => void; onIntro: () => void; onResource: (id: string) => void }) {
+  const c = usePalette(), ai = useAi(active), state = useCareer(), context = profileContext(profile);
+  const currentPlan = state.plan?.context === context ? state.plan.text : '';
+  const generate = async () => {
+    if (!profile.jd.trim() && !profile.experience.trim()) { onProfile(); app.toast.show('补充一段经历或 JD，就能给你更具体的准备重点'); return; }
+    const account = owner();
+    const text = await ai.run('用简洁中文短段落输出，不用表格。总计500字以内：①今晚最该补的三个问题，结合用户担心的点，各给一个小动作，三个动作合计建议8分钟内可完成；②三个岗位要求与真实经历的对应证据，缺少证据就标待补充，不把岗位要求当作已有能力；③三道优先练的问题，解释为什么问；④面试前要确认的两件事。没有JD时标注“依据岗位一般要求”。公司部分仅给调研方向，不给未核实事实。', JSON.stringify(aiProfile(profile)));
+    if (text) { updateState(s => s.aiAllowed && profileContext(s.profile) === context ? ({ ...s, plan: { context, text } }) : s, account); ai.clear(); }
+  };
   const renderTask = useCallback(({ item, index }: { item: typeof checklist[number]; index: number }) => <View style={[styles.row, { paddingVertical: 11, borderBottomWidth: 1, borderColor: c.line }]}>
     <Pressable accessibilityRole="checkbox" accessibilityLabel={`完成：${item.title}`} accessibilityState={{ checked: checked.includes(item.id) }} onPress={() => toggleCheck(item.id)} style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 15, backgroundColor: checked.includes(item.id) ? c.primary : c.field, alignItems: 'center', justifyContent: 'center', opacity: pressed ? .7 : 1 })}>{checked.includes(item.id) ? <Check size={22} color={c.onPrimary} /> : <Text style={{ fontSize: 16, color: c.muted, fontWeight: '700' }}>0{index + 1}</Text>}</Pressable>
-    <Pressable accessibilityRole="button" onPress={() => { if (item.action === 'profile') onProfile(); else if (item.action === 'intro') onIntro(); else if (item.action === 'logistics') onResource('day-before'); else onPractice(item.action === 'practice' ? undefined : item.action); }} style={({ pressed }) => ({ flex: 1, gap: 3, paddingVertical: 5, opacity: pressed ? .65 : 1 })}><Text style={[styles.heading, { color: c.text }]}>{item.title}</Text><Text style={[styles.small, { color: c.muted }]}>{item.detail}</Text></Pressable><ChevronRight size={18} color={c.muted} />
-  </View>, [checked, c, onProfile, onPractice, onIntro, onResource]);
+    <Pressable accessibilityRole="button" onPress={() => { if (item.action === 'profile') onProfile(); else if (item.action === 'intro') onIntro(); else if (item.action === 'logistics') onResource('day-before'); else if (item.action === 'practice') onInterview(); else onPractice(item.action); }} style={({ pressed }) => ({ flex: 1, gap: 3, paddingVertical: 5, opacity: pressed ? .65 : 1 })}><Text style={[styles.heading, { color: c.text }]}>{item.title}</Text><Text style={[styles.small, { color: c.muted }]}>{item.detail}</Text></Pressable><ChevronRight size={18} color={c.muted} />
+  </View>, [checked, c, onProfile, onPractice, onInterview, onIntro, onResource]);
   return <FlashList data={checklist} keyExtractor={taskKey} renderItem={renderTask} contentContainerStyle={{ padding: 20, paddingBottom: 32 }} extraData={checked} ListHeaderComponent={<View style={{ gap: 20, paddingBottom: 12 }}>
-    <View style={{ backgroundColor: c.hero, borderRadius: 24, padding: 22, gap: 15 }}><View style={styles.spread}><Text style={{ color: c.heroText, fontSize: 12, fontWeight: '800', letterSpacing: 2 }}>INTERVIEW FIRST AID</Text><BriefcaseBusiness size={23} color={c.heroText} /></View><Text style={{ color: c.heroText, fontSize: 31, fontWeight: '800', lineHeight: 39, letterSpacing: -1 }}>明天面试，{'\n'}今晚准备好。</Text><Text style={[styles.body, { color: c.heroText }]}>不用一次变完美。把最重要的几件事，一件一件准备好。</Text><Action label="先练一分钟自我介绍" onPress={() => onPractice('intro')} icon={<ArrowRight size={18} color={c.onPrimary} />} /></View>
-    <View style={styles.spread}><Section c={c} title={profile.role} note="这次面试的方向" /><Action label="调整" subtle icon={<Settings2 size={16} color={c.text} />} onPress={onProfile} /></View>
-    <View style={styles.row}><Action label="写自我介绍" subtle onPress={onIntro} style={{ flex: 1 }} /><Action label="AI 定制准备" busy={ai.busy} onPress={() => { if (!profile.jd.trim() && !profile.experience.trim()) { onProfile(); app.toast.show('补充岗位描述或经历，教练才能给出具体建议'); return; } void ai.run('根据岗位与经历，给出：三个准备重点、三道最相关的面试题、一个今晚就能补齐的短板。总计不超过 650 字。', JSON.stringify(profile)); }} style={{ flex: 1 }} /></View><AiResult ai={ai} c={c} />
-    <View style={styles.spread}><Section c={c} title={checked.length === checklist.length ? '准备好了，带着底气出发' : '今晚的准备清单'} note="点内容开始准备，点左侧标记完成。" /><Text style={{ color: c.primary, fontWeight: '800', fontSize: 17 }}>{checked.length}/{checklist.length}</Text></View><View style={{ height: 5, borderRadius: 4, backgroundColor: c.line, overflow: 'hidden' }}><View style={{ width: `${checked.length / checklist.length * 100}%`, height: 5, backgroundColor: c.primary }} /></View>
+    <View style={{ backgroundColor: c.hero, borderRadius: 24, padding: 22, gap: 16 }}><View style={styles.spread}><Text style={{ color: c.heroText, fontSize: 13, fontWeight: '700' }}>今晚，把最重要的答案练清楚</Text><BriefcaseBusiness size={23} color={c.heroText} /></View><Text style={{ color: c.heroText, fontSize: 30, fontWeight: '800', lineHeight: 39 }}>明天面试，{'\n'}先知道怎么准备。</Text><Text style={[styles.body, { color: c.heroText }]}>围绕你的经历和 JD 找重点，练一轮，再把最薄弱的一题答好。</Text><Text style={[styles.small, { color: c.heroText }]}>3 分钟填资料 → 8 分钟准备 → 15 分钟陪练 → 4 分钟复盘</Text><Action label={state.session && !state.session.report ? '继续未完成的陪练' : '开始一轮面试陪练'} onPress={onInterview} icon={<ArrowRight size={18} color={c.onPrimary} />} /><Action label="马上要面试？2 分钟回顾" subtle onPress={onQuick} /></View>
+    <View style={styles.spread}><View style={{ flex: 1 }}><Section c={c} title={roleName(profile)} note={[profile.company, profile.round, profile.jd ? '已提供 JD' : '尚未提供 JD'].filter(Boolean).join(' · ')} /></View><Action label="调整" subtle icon={<Settings2 size={16} color={c.text} />} onPress={onProfile} /></View>
+    {profile.concern ? <Text style={[styles.body, { color: c.muted }]}>这次先解决：{profile.concern}</Text> : null}
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Action label="准备自我介绍" subtle onPress={onIntro} style={{ flexGrow: 1 }} /><Action label={currentPlan ? '重新整理准备重点' : '帮我找准备重点'} busy={ai.busy} onPress={() => void generate()} style={{ flexGrow: 1 }} /></View>
+    <AiPrivacy /><AiResult ai={ai} c={c} />
+    {currentPlan ? <Card><Text style={[styles.heading, { color: c.text }]}>这次面试的准备重点</Text><Text style={[styles.small, { color: c.muted }]}>AI 生成 · 已保存在本机，离线也能回顾</Text><Text selectable style={[styles.body, { color: c.text }]}>{currentPlan}</Text><Action label="带着这些重点去练一轮" onPress={onInterview} /></Card> : null}
+    {state.history.length ? <View style={{ gap: 12 }}><Section c={c} title="上次卡住的，这次补上" note="最近 10 次完整或部分复盘，本机保存。" />{state.history.slice(0, 3).map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)}{h.profile.company ? ` · ${h.profile.company}` : ''}</Text><Text style={[styles.small, { color: c.muted }]}>{new Date(h.createdAt).toLocaleDateString()} · {h.turns.filter(t => t.answer.trim()).length} 道回答</Text><Text style={[styles.body, { color: c.text }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开复盘，重答薄弱题" subtle onPress={() => {
+      const account = owner(); const open = () => { updateState(s => ({ ...s, session: h }), account); onInterview(); };
+      if (state.session && !state.session.report && state.session.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '继续陪练', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open();
+    }} /></Card>)}{state.history.length > 3 ? <Action label={`查看全部 ${state.history.length} 份复盘`} subtle onPress={() => onResource('history')} /> : null}</View> : null}
+    <View style={styles.spread}><Section c={c} title="补充准备清单" note="点内容开始准备，左侧标记完成。" /><Text style={{ color: c.primary, fontWeight: '800', fontSize: 17 }}>{checked.length}/{checklist.length}</Text></View><View style={{ height: 5, borderRadius: 4, backgroundColor: c.line, overflow: 'hidden' }}><View style={{ width: `${checked.length / checklist.length * 100}%`, height: 5, backgroundColor: c.primary }} /></View>
   </View>} />;
 });
 const Practice = memo(function Practice({ profile, active, requested }: { profile: Profile; active: boolean; requested: { id?: string; at: number } }) {
@@ -106,12 +100,13 @@ const Practice = memo(function Practice({ profile, active, requested }: { profil
   };
   const stopRecording = () => { const session = speech.current; if (!session) return; setListening(false); setFinishing(true); session.save(); session.stop(); };
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <AiPrivacy />
     <View style={styles.spread}><Section c={c} title="把答案说出来" note={`${profile.role} · ${pool.length} 道核心问题`} /><IconAction label="分享这道练习" onPress={() => share({ question: question.id }, question.title)}><Share2 size={20} color={c.text} /></IconAction></View>
     <View style={{ backgroundColor: c.hero, borderRadius: 23, padding: 22, gap: 15 }}><View style={styles.spread}><Text style={{ color: c.heroText, fontWeight: '700', fontSize: 13 }}>{question.tag}</Text><Text style={{ color: c.heroText, fontSize: 13 }}>{index + 1} / {pool.length}</Text></View><Text style={[styles.title, { color: c.heroText }]}>{question.title}</Text><View style={styles.spread}><Pressable accessibilityRole="button" onPress={() => started ? setStarted(null) : (setSeconds(0), setStarted(Date.now()))} style={({ pressed }) => ({ minHeight: 44, paddingVertical: 10, opacity: pressed ? .6 : 1 })}><Text style={{ color: c.heroText, fontWeight: '700' }}>{started ? `计时 ${seconds} 秒 · 停止` : seconds ? `用了 ${seconds} 秒 · 再练一次` : '开始计时 · 建议 60–90 秒'}</Text></Pressable><IconAction label="下一题" onPress={next}><ArrowRight size={22} color={c.heroText} /></IconAction></View></View>
     <Action label={hint ? '收起回答思路' : '卡住了？看看回答思路'} subtle icon={<Lightbulb size={18} color={c.text} />} onPress={() => setHint(v => !v)} />
     {hint ? <Card><Text style={[styles.body, { color: c.muted }]}>{question.intent}</Text>{question.outline.map((line, i) => <Text key={line} style={[styles.body, { color: c.text }]}>{i + 1}. {line}</Text>)}<Text style={[styles.small, { color: c.orange }]}>{question.avoid}</Text></Card> : null}
     <View style={styles.spread}><Text style={[styles.heading, { color: c.text }]}>你的回答</Text><Text style={[styles.small, { color: c.muted }]}>本机自动保存</Text></View><TextInput value={answer} onChangeText={setAnswer} multiline maxLength={8000} editable={!listening && !finishing} placeholder="先按自己的方式说。真实经历比漂亮话更重要。" placeholderTextColor={c.muted} style={[fieldStyle(c), { minHeight: 140 }]} />
-    <View style={styles.row}><Action label={finishing ? '正在整理…' : listening ? '结束录入' : '开始录入'} subtle={!listening} busy={finishing} icon={listening ? <Square size={18} color={c.onPrimary} /> : <Mic size={18} color={c.text} />} onPress={() => speech.current ? stopRecording() : record()} style={{ flex: 1 }} /><Action label="请教练点评" busy={ai.busy} disabled={!answer.trim() || listening || finishing} icon={<Sparkles size={17} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); void ai.run('针对回答，依次给出：讲得好的地方、最值得补充的两点、一版精简表达、面试官可能追问的一道题。总计不超过 650 字。', JSON.stringify({ profile, question: question.title, answer })); }} /></View><AiResult ai={ai} c={c} />
+    <View style={styles.row}><Action label={finishing ? '正在整理…' : listening ? '结束录入' : '开始录入'} subtle={!listening} busy={finishing} icon={listening ? <Square size={18} color={c.onPrimary} /> : <Mic size={18} color={c.text} />} onPress={() => speech.current ? stopRecording() : record()} style={{ flex: 1 }} /><Action label="请教练点评" busy={ai.busy} disabled={!answer.trim() || listening || finishing} icon={<Sparkles size={17} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); void ai.run('针对回答，依次给出：讲得好的地方、最值得补充的两点、一版精简表达、面试官可能追问的一道题。总计不超过 650 字。', JSON.stringify({ profile: aiProfile(profile), question: question.title, answer })); }} /></View><AiResult ai={ai} c={c} />
     <View style={styles.row}><Action label="复制回答" disabled={!answer.trim()} subtle onPress={() => copy(answer)} style={{ flex: 1 }} /><Action label="换一道题" subtle onPress={next} style={{ flex: 1 }} /></View>
   </ScrollView>;
 });
@@ -119,9 +114,9 @@ function IntroEditor({ profile, active }: { profile: Profile; active: boolean })
   const c = usePalette(), state = useCareer(), ai = useAi(active), account = useRef(owner()).current;
   const [text, setText] = useState(() => state.intro || draftIntro(profile));
   const save = (value: string) => { setText(value); updateState(s => ({ ...s, intro: value }), account); };
-  return <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}><Section c={c} title="一分钟自我介绍" note="先有一版，再练自然。括号里的内容需要你自己补齐。" />
-    <BottomSheetTextInput value={text} onChangeText={setText} onBlur={() => updateState(s => ({ ...s, intro: text }), account)} maxLength={8000} multiline style={[fieldStyle(c), { minHeight: 220 }]} />
-    <View style={styles.row}><Action label="复制这版" subtle icon={<Copy size={18} color={c.text} />} onPress={() => { save(text); copy(text); }} style={{ flex: 1 }} /><Action label="AI 打磨" busy={ai.busy} disabled={!text.trim()} icon={<Sparkles size={18} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); save(text); void ai.run('改写成适合口头表达的 60 秒自我介绍，180–260 个汉字。保留真实信息；缺失内容用［待补充］。只输出介绍正文。', JSON.stringify({ profile, current: text })); }} /></View><AiResult ai={ai} c={c} />
+  return <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}><AiPrivacy /><Section c={c} title="一分钟自我介绍" note="先有一版，再练自然。括号里的内容需要你自己补齐。" />
+    <BottomSheetTextInput value={text} accessibilityLabel="自我介绍正文" onChangeText={save} maxLength={8000} multiline style={[fieldStyle(c), { minHeight: 220 }]} />
+    <View style={styles.row}><Action label="复制这版" subtle icon={<Copy size={18} color={c.text} />} onPress={() => { save(text); copy(text); }} style={{ flex: 1 }} /><Action label="AI 打磨" busy={ai.busy} disabled={!text.trim()} icon={<Sparkles size={18} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); save(text); void ai.run('改写成适合口头表达的 60 秒自我介绍，180–260 个汉字。保留真实信息；缺失内容用［待补充］。只输出介绍正文。', JSON.stringify({ profile: aiProfile(profile), current: text })); }} /></View><AiResult ai={ai} c={c} />
     {ai.output && !ai.busy && !ai.error ? <Action label="采用并保存这版" onPress={() => { save(ai.output); app.toast.show('已保存，可以开始计时练习', 'success'); }} /> : null}<Action label="按当前经历重新起草" subtle onPress={() => save(draftIntro(profile))} />
   </BottomSheetScrollView>;
 }
@@ -151,13 +146,16 @@ export default function CareerRescue() {
   useEffect(() => { const listener = AppState.addEventListener('change', value => setForeground(value === 'active')); return () => listener.remove(); }, []);
   const visible = focused && foreground;
   const profile = useMemo(() => state.profile, [JSON.stringify(state.profile)]), checked = useMemo(() => state.checked, [JSON.stringify(state.checked)]), saved = useMemo(() => state.saved, [JSON.stringify(state.saved)]);
-  const [tab, setTab] = useState(0), [width, setWidth] = useState(0), [resourceId, setResourceId] = useState<string | null>(null), [sheet, setSheet] = useState<'profile' | 'intro' | 'resource' | null>(null), [practice, setPractice] = useState<{ id?: string; at: number }>({ at: 0 });
+  const [practiceMode, setPracticeMode] = useState<'interview' | 'single'>('interview');
+  const [tab, setTab] = useState(0), [width, setWidth] = useState(0), [resourceId, setResourceId] = useState<string | null>(null), [sheet, setSheet] = useState<'profile' | 'intro' | 'resource' | 'quick' | 'history' | null>(null), [practice, setPractice] = useState<{ id?: string; at: number }>({ at: 0 });
   const pager = useRef<PagerView>(null), modal = useRef<BottomSheetModal>(null), position = useRef(new Animated.Value(0)).current, offset = useRef(new Animated.Value(0)).current;
   const visit = useCallback((next: number) => { Keyboard.dismiss(); setTab(next); pager.current?.setPage(next); }, []);
   const openProfile = useCallback(() => { setSheet('profile'); modal.current?.present(); }, []);
   const openIntro = useCallback(() => { setSheet('intro'); modal.current?.present(); }, []);
-  const openResource = useCallback((id: string) => { if (!resources.some(item => item.id === id)) return; setResourceId(id); setSheet('resource'); modal.current?.present(); }, []);
-  const openPractice = useCallback((id?: string) => { setPractice({ id, at: Date.now() }); visit(1); }, [visit]);
+  const openResource = useCallback((id: string) => { if (id === 'history') { setSheet('history'); modal.current?.present(); return; } if (!resources.some(item => item.id === id)) return; setResourceId(id); setSheet('resource'); modal.current?.present(); }, []);
+  const openQuick = useCallback(() => { setSheet('quick'); modal.current?.present(); }, []);
+  const openInterview = useCallback(() => { setPracticeMode('interview'); visit(1); }, [visit]);
+  const openPractice = useCallback((id?: string) => { setPracticeMode('single'); setPractice({ id, at: Date.now() }); visit(1); }, [visit]);
   useEffect(() => { if (previousAccount.current !== account) { previousAccount.current = account; modal.current?.dismiss(); setSheet(null); } }, [account]);
   useEffect(() => {
     const receive = (params?: ShareParams) => { if (typeof params?.resource === 'string') { visit(2); openResource(params.resource); } else if (typeof params?.question === 'string') { const q = questions.find(q => q.id === params.question); if (q) { if (q.role !== '通用') updateState(s => ({ ...s, profile: { ...s.profile, role: q.role } })); openPractice(q.id); } } };
@@ -166,15 +164,15 @@ export default function CareerRescue() {
   const selected = resources.find(r => r.id === resourceId);
   const indicator = Animated.add(position, offset).interpolate({ inputRange: [0, 2], outputRange: [0, width * 2 / 3] });
   return <BottomSheetModalProvider><SafeAreaView edges={['top', 'bottom']} style={[styles.root, { backgroundColor: c.bg }]}>
-    <View style={[styles.spread, { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }]}><View style={[styles.row, { flex: 1 }]}><View style={{ width: 39, height: 39, backgroundColor: c.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}><BriefcaseBusiness size={22} color={c.onPrimary} /></View><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: '800', fontSize: 18 }}>求职急救站</Text><Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>生花官方 · 给第一次面试的你</Text></View></View><IconAction label="分享求职急救站" onPress={() => share()}><Share2 size={21} color={c.text} /></IconAction></View>
+    <View style={[styles.spread, { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }]}><View style={[styles.row, { flex: 1 }]}><View style={{ width: 39, height: 39, backgroundColor: c.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}><BriefcaseBusiness size={22} color={c.onPrimary} /></View><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: '800', fontSize: 18 }}>求职急救站</Text><Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>生花官方 · 把真实经历练成具体答案</Text></View></View><IconAction label="分享求职急救站" onPress={() => share()}><Share2 size={21} color={c.text} /></IconAction></View>
     <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={{ marginHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.line }}><View style={{ flexDirection: 'row' }}>{tabs.map((title, i) => <Pressable key={title} accessibilityRole="tab" accessibilityState={{ selected: tab === i }} onPress={() => visit(i)} style={({ pressed }) => ({ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? .6 : 1 })}><Text style={{ color: tab === i ? c.primary : c.muted, fontSize: 15, fontWeight: tab === i ? '800' : '500' }}>{title}</Text></Pressable>)}</View><Animated.View style={{ width: width / 3, height: 3, borderRadius: 2, backgroundColor: c.primary, transform: [{ translateX: indicator }] }} /></View>
     <AnimatedPager ref={pager} initialPage={0} style={{ flex: 1 }} offscreenPageLimit={2} onPageSelected={e => setTab(e.nativeEvent.position)} onPageScroll={Animated.event([{ nativeEvent: { position, offset } }], { useNativeDriver: false })}>
-      <View key="prepare" collapsable={false}><Prepare profile={profile} checked={checked} active={tab === 0 && visible} onProfile={openProfile} onPractice={openPractice} onIntro={openIntro} onResource={openResource} /></View>
-      <View key="practice" collapsable={false}><Practice key={account} profile={profile} active={tab === 1 && visible} requested={practice} /></View>
+      <View key="prepare" collapsable={false}><Prepare profile={profile} checked={checked} active={tab === 0 && visible} onProfile={openProfile} onPractice={openPractice} onInterview={openInterview} onQuick={openQuick} onIntro={openIntro} onResource={openResource} /></View>
+      <View key="practice" collapsable={false} style={{ flex: 1 }}><View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12 }}><Action label="整轮陪练" subtle={practiceMode !== 'interview'} onPress={() => setPracticeMode('interview')} style={{ flex: 1 }} /><Action label="单题练习" subtle={practiceMode !== 'single'} onPress={() => setPracticeMode('single')} style={{ flex: 1 }} /></View><View style={{ flex: 1, display: practiceMode === 'interview' ? 'flex' : 'none' }}><Interview key={account} active={tab === 1 && visible && practiceMode === 'interview'} onProfile={openProfile} onIntro={openIntro} onPrepare={() => visit(0)} /></View><View style={{ flex: 1, display: practiceMode === 'single' ? 'flex' : 'none' }}><Practice key={account} profile={profile} active={tab === 1 && visible && practiceMode === 'single'} requested={practice} /></View></View>
       <View key="resources" collapsable={false}><ResourceBag saved={saved} onOpen={openResource} /></View>
     </AnimatedPager>
     <BottomSheetModal ref={modal} snapPoints={snapPoints} enableDynamicSizing={false} enablePanDownToClose backdropComponent={backdrop} keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" backgroundStyle={{ backgroundColor: c.surface }} handleIndicatorStyle={{ backgroundColor: c.muted }} onDismiss={() => { setSheet(null); Keyboard.dismiss(); }}>
-      {sheet === 'profile' ? <ProfileEditor key={account} profile={profile} c={c} onSave={profile => { updateState(s => ({ ...s, profile }), account); modal.current?.dismiss(); app.toast.show('准备方向已更新', 'success'); }} /> : sheet === 'intro' ? <IntroEditor key={account} profile={profile} active={visible} /> : sheet === 'resource' && selected ? <ResourceDetail key={selected.id + account} item={selected} saved={saved.includes(selected.id)} c={c} /> : <View style={{ minHeight: 1 }} />}
+      {sheet === 'quick' ? <QuickCard key={account} /> : sheet === 'history' ? <BottomSheetScrollView contentContainerStyle={styles.content}><Section title="我的面试复盘" c={c} />{state.history.map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)} · {new Date(h.createdAt).toLocaleDateString()}</Text><Text style={[styles.body, { color: c.muted }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开这份复盘" subtle onPress={() => { const open = () => { updateState(s => ({ ...s, session: h }), account); modal.current?.dismiss(); openInterview(); }; if (state.session && !state.session.report && state.session.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '取消', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open(); }} /></Card>)}</BottomSheetScrollView> : sheet === 'profile' ? <ProfileEditor key={account} profile={profile} c={c} onSave={profile => { updateState(s => ({ ...s, profile }), account); modal.current?.dismiss(); app.toast.show('准备方向已更新', 'success'); }} /> : sheet === 'intro' ? <IntroEditor key={account} profile={profile} active={visible} /> : sheet === 'resource' && selected ? <ResourceDetail key={selected.id + account} item={selected} saved={saved.includes(selected.id)} c={c} /> : <View style={{ minHeight: 1 }} />}
     </BottomSheetModal>
   </SafeAreaView></BottomSheetModalProvider>;
 }
