@@ -32,13 +32,22 @@ export const Resume = memo(function Resume({ active, onProfile, onTrack, onPract
   const importFile = async (image: boolean) => {
     if (controller.current) return; const token = new AbortController(); controller.current = token; setImporting(true); setError('');
     try {
-      const path = image ? 'resume/input-image' : 'resume/input.txt', input = await data.files.importFile(path, { mime: image ? 'image/*' : 'text/plain', maxBytes: image ? 10 * 1024 * 1024 : 96 * 1024, signal: token.signal });
+      const path = image ? 'resume/input-image' : 'resume/input-document', input = await data.files.importFile(path, { mime: image ? 'image/*' : '*/*', maxBytes: image ? 10 * 1024 * 1024 : 20 * 1024 * 1024, signal: token.signal });
       if (!input.ok) { if (input.code !== 'CANCELLED') throw new Error(input.error); return; }
       let body: string;
       if (image) { const result = await data.files.recognizeText(path, { signal: token.signal }); if (!result.ok) throw new Error(result.error); body = result.text; }
-      else body = await data.files.readText(path, { signal: token.signal });
+      else {
+        const extension = input.name.split('.').pop()?.toLowerCase();
+        if (extension === 'txt') body = await data.files.readText(path, { signal: token.signal });
+        else if (extension && ['pdf', 'docx', 'doc'].includes(extension)) {
+          const result = await data.files.extractText(path, { maxChars: 16001, signal: token.signal });
+          if (!result.ok) throw new Error(result.error);
+          if (result.truncated) throw new Error('正文超过16000字，请精简简历后重新导入');
+          body = result.text;
+        } else throw new Error('请选择 PDF、Word（DOCX / DOC）或 TXT 简历');
+      }
       if (owner() !== account || token.signal.aborted) return;
-      if (!body.trim()) throw new Error('没有识别到正文，请换清晰截图或直接粘贴');
+      if (!body.trim()) throw new Error('没有提取到正文。扫描版 PDF 请用截图识字，或直接粘贴文字');
       if (body.length > 16000) throw new Error('正文超过16000字，请删减后粘贴');
       const replace = () => { if (owner() !== account) return; setText(body); saveResume(body, account); dirty.current = false; setShowInput(true); };
       if (latest.current.trim()) Alert.alert('替换简历正文？', '当前正文会被替换。已保存的投递版本保留。', [{ text: '取消', style: 'cancel' }, { text: '替换', onPress: replace }]); else replace();
@@ -65,7 +74,7 @@ export const Resume = memo(function Resume({ active, onProfile, onTrack, onPract
   const review = work.review, stale = !!review && (review.resumeAt !== work.resumeAt || review.jd !== career.profile.jd);
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
     <View style={styles.spread}><View style={{ flex: 1 }}><Text style={[styles.heading, { color: c.text }]}>投递前，先对齐这个岗位</Text><Text style={[styles.small, { color: c.muted }]}>{roleName(career.profile)}{career.profile.company ? ` · ${career.profile.company}` : ''}</Text></View><Action label="调整目标" subtle onPress={onProfile} /></View>
-    <View style={styles.row}><Action label="导入 TXT" subtle busy={importing} icon={<Upload size={16} color={c.text} />} onPress={() => void importFile(false)} style={{ flex: 1 }} /><Action label="截图识字" subtle disabled={importing} icon={<Image size={16} color={c.text} />} onPress={() => void importFile(true)} style={{ flex: 1 }} /></View>
+    <View style={{ gap: 4 }}><View style={styles.row}><Action label="导入简历" subtle busy={importing} icon={<Upload size={16} color={c.text} />} onPress={() => void importFile(false)} style={{ flex: 1 }} /><Action label="截图识字" subtle disabled={importing} icon={<Image size={16} color={c.text} />} onPress={() => void importFile(true)} style={{ flex: 1 }} /></View><Text style={[styles.small, { color: c.muted }]}>支持 PDF / Word / TXT · 提取后可编辑，正文保存在本机</Text></View>
     <View style={{ gap: 6 }}><View style={styles.spread}><Text style={[styles.heading, { color: c.text }]}>简历正文 · {draft.length} 字</Text><Action label={showInput ? '收起' : '编辑'} subtle onPress={() => setShowInput(v => !v)} /></View>{showInput ? <TextInput accessibilityLabel="简历正文" value={draft} multiline maxLength={16000} onChangeText={setText} onBlur={save} placeholder="粘贴经历、项目和技能。删去电话、地址等非必要信息；内容保存在本机。" placeholderTextColor={c.muted} style={[styles.field, { color: c.text, backgroundColor: c.surface, borderColor: c.line, minHeight: 100, maxHeight: 180 }]} /> : <Text numberOfLines={3} style={[styles.body, { color: c.muted }]}>{draft || '还没有正文，先粘贴或导入。'}</Text>}</View>
     <View style={{ gap: 6 }}><View style={styles.spread}><Text style={[styles.heading, { color: c.text }]}>目标 JD · {jd.length} 字</Text><Action label={showJd ? '收起' : '编辑'} subtle onPress={() => setShowJd(v => !v)} /></View>{showJd ? <TextInput accessibilityLabel="目标岗位描述" value={jd} multiline maxLength={6000} onChangeText={v => { latestJd.current = v; jdDirty.current = true; setJd(v); }} onBlur={save} placeholder="粘贴这个岗位的职责与要求。没有JD时只做表达检查。" placeholderTextColor={c.muted} style={[styles.field, { color: c.text, backgroundColor: c.surface, borderColor: c.line, minHeight: 80, maxHeight: 160 }]} /> : <Text numberOfLines={3} style={[styles.body, { color: c.muted }]}>{jd || '尚未提供 JD，只能检查表达。'}</Text>}</View>
     <AiPrivacy />{error || ai.error ? <Text accessibilityLiveRegion="polite" style={[styles.body, { color: c.orange }]}>{error || ai.error}</Text> : null}
