@@ -1,5 +1,5 @@
 import type { Profile } from './model';
-import { questions } from './content';
+import { questions, type Question } from './content';
 
 export type Feedback = { evidence: string; good: string; gap: string; example: string };
 export type Turn = { title: string; hint: string; kind: string; answer: string; feedback: Feedback | null };
@@ -24,9 +24,9 @@ export function readSession(value: unknown): InterviewSession | null {
   const revision = Number.isInteger(r.turnIndex) && turns[r.turnIndex]?.answer ? { turnIndex: r.turnIndex, answer: text(r.answer), comparison: text(r.comparison, 4000) } : null;
   return { id: text(s.id, 100), createdAt: s.createdAt, profile, turns, index: s.index, followedUp: s.followedUp === true, finished: s.finished === true, report, revision };
 }
-export function createSession(profile: Profile): InterviewSession {
-  const specialist = questions.find(q => q.role === profile.role) || questions.find(q => q.id === 'team')!;
-  const seed = ['intro', 'project', specialist.id, 'why', 'ask'].map(id => questions.find(q => q.id === id)!);
+export function createSession(profile: Profile, targeted?: Question): InterviewSession {
+  const specialist = targeted || questions.find(q => q.role === profile.role) || questions.find(q => q.id === 'team')!;
+  const seed = [questions.find(q => q.id === 'intro')!, questions.find(q => q.id === 'project')!, specialist, questions.find(q => q.id === 'why')!, questions.find(q => q.id === 'ask')!];
   return { id: `practice-${Date.now()}`, createdAt: Date.now(), profile: { ...profile }, turns: seed.map(q => ({ title: q.title, hint: q.outline.join('\n'), kind: q.id, answer: '', feedback: null })), index: 0, followedUp: false, finished: false, report: null, revision: null };
 }
 export function decodeJson(raw: string): unknown {
@@ -61,7 +61,7 @@ export function applyFeedback(s: InterviewSession, reply: ReturnType<typeof pars
 }
 export function sessionContext(s: InterviewSession) {
   const { name, ...profile } = s.profile;
-  return { profile, answers: s.turns.slice(0, s.index + 1).map((t, i) => ({ turnIndex: i, question: t.title, answer: t.answer, feedback: t.feedback })) };
+  return { profile, answers: s.turns.slice(0, s.index + 1).map((t, i) => ({ turnIndex: i, question: t.title, referencePoints: t.hint, answer: t.answer, feedback: t.feedback })) };
 }
 export function reportText(s: InterviewSession): string {
   return `${s.profile.target || s.profile.role}${s.profile.company ? ' · ' + s.profile.company : ''}\n${s.profile.round} · ${new Date(s.createdAt).toLocaleDateString()}\n\n${s.turns.filter(t => t.answer.trim()).map((t, i) => `${i + 1}. ${t.title}\n我的回答：${t.answer}\n${t.feedback ? `优点：${t.feedback.good}\n待补充：${t.feedback.gap}\n表达参考：${t.feedback.example}` : '尚未点评'}`).join('\n\n')}\n\n${s.report ? `本轮优势：${s.report.strength}\n\n${s.report.priorities.map((p, i) => `${i + 1}. ${p.issue}\n下一步：${p.action}`).join('\n\n')}\n\n面前回顾：${s.report.reminder}` : ''}${s.revision?.comparison ? `\n\n重答对比：${s.revision.comparison}` : ''}\n\nAI 练习建议，不预测录用结果。`;

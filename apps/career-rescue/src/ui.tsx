@@ -15,11 +15,11 @@ export function Action({ label, icon, onPress, subtle = false, busy = false, dis
 export function IconAction({ label, children, onPress, selected = false }: { label: string; children: ReactNode; onPress: () => void; selected?: boolean }) { const c = usePalette(); return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [styles.iconAction, { backgroundColor: selected ? c.wash : 'transparent', opacity: pressed ? .55 : 1 }]}>{children}</Pressable>; }
 export function Card({ children }: { children: ReactNode }) { const c = usePalette(); return <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.line }]}>{children}</View>; }
 export const styles = StyleSheet.create({
-  root: { flex: 1 }, content: { padding: 20, paddingBottom: 32, gap: 16 },
+  root: { flex: 1 }, content: { padding: 14, paddingBottom: 24, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, spread: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  action: { minHeight: 48, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  iconAction: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' }, card: { borderWidth: 1, borderRadius: 20, padding: 18, gap: 12 },
-  title: { fontSize: 24, lineHeight: 32, fontWeight: '800', letterSpacing: -.5 }, body: { fontSize: 15, lineHeight: 24 }, small: { fontSize: 13, lineHeight: 20 }, heading: { fontSize: 17, lineHeight: 24, fontWeight: '700' },
-  field: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 16, lineHeight: 24, minHeight: 50, textAlignVertical: 'top' }, label: { fontSize: 14, fontWeight: '700', lineHeight: 22, marginBottom: 7 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  action: { minHeight: 48, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  iconAction: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' }, card: { borderWidth: 1, borderRadius: 10, padding: 12, gap: 8 },
+  title: { fontSize: 20, lineHeight: 28, fontWeight: '800' }, body: { fontSize: 14, lineHeight: 23 }, small: { fontSize: 12, lineHeight: 18 }, heading: { fontSize: 15, lineHeight: 22, fontWeight: '700' },
+  field: { borderWidth: 1, borderRadius: 9, padding: 10, fontSize: 14, lineHeight: 23, minHeight: 48, textAlignVertical: 'top' }, label: { fontSize: 13, fontWeight: '700', lineHeight: 20, marginBottom: 5 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, chip: { minHeight: 44, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 });

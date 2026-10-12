@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { getAppContext } from '@zijinhua/app-sdk';
-import { roles, questions, checklist, resources } from './content';
+import { roles, checklist } from './content';
 import { readSession, type InterviewSession } from './interview-model';
 export const app = getAppContext();
 export const data = app.scope('account');
@@ -16,8 +16,8 @@ export function readCareer(): State {
     const text = (v: unknown, max = 8000) => typeof v === 'string' ? v.slice(0, max) : '';
     const p = value.profile || {};
     const answers: Record<string, string> = {};
-    for (const question of questions) if (typeof value.answers?.[question.id] === 'string') answers[question.id] = text(value.answers[question.id]);
-    return { profile: { role: (roles as readonly string[]).includes(p.role) ? p.role : roles[0], target: text(p.target, 80), company: text(p.company, 80), round: text(p.round, 40) || '业务面', concern: text(p.concern, 600), name: text(p.name, 40), background: text(p.background, 300), experience: text(p.experience, 4000), jd: text(p.jd, 6000) }, checked: Array.isArray(value.checked) ? [...new Set<string>(value.checked.filter((id: unknown) => checklist.some(item => item.id === id)))] : [], answers, intro: text(value.intro), saved: Array.isArray(value.saved) ? [...new Set<string>(value.saved.filter((id: unknown) => resources.some(item => item.id === id)))] : [], aiAllowed: value.aiAllowed === true, plan: typeof value.plan?.text === 'string' && typeof value.plan?.context === 'string' ? { context: text(value.plan.context, 14000), text: text(value.plan.text, 6000) } : null, session: readSession(value.session), history: Array.isArray(value.history) ? value.history.map(readSession).filter((s: InterviewSession | null): s is InterviewSession => !!s?.report).slice(0, 10) : [] };
+    for (const [id, answer] of Object.entries(value.answers || {}).slice(-300)) if (/^[a-z][a-z0-9-]{0,79}$/.test(id) && typeof answer === 'string') answers[id] = text(answer);
+    return { profile: { role: (roles as readonly string[]).includes(p.role) ? p.role : roles[0], target: text(p.target, 80), company: text(p.company, 80), round: text(p.round, 40) || '业务面', concern: text(p.concern, 600), name: text(p.name, 40), background: text(p.background, 300), experience: text(p.experience, 4000), jd: text(p.jd, 6000) }, checked: Array.isArray(value.checked) ? [...new Set<string>(value.checked.filter((id: unknown) => checklist.some(item => item.id === id)))] : [], answers, intro: text(value.intro), saved: Array.isArray(value.saved) ? [...new Set<string>(value.saved.filter((id: unknown): id is string => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id)))].slice(-300) : [], aiAllowed: value.aiAllowed === true, plan: typeof value.plan?.text === 'string' && typeof value.plan?.context === 'string' ? { context: text(value.plan.context, 14000), text: text(value.plan.text, 6000) } : null, session: readSession(value.session), history: Array.isArray(value.history) ? value.history.map(readSession).filter((s: InterviewSession | null): s is InterviewSession => !!s?.report).slice(0, 10) : [] };
   } catch { return empty; }
 }
 const snapshot = () => `${owner()}|${data.storage.get(key) || ''}`;

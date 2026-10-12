@@ -6,9 +6,11 @@ import { app, copy, data, owner, roleName, updateState, useCareer } from './mode
 import { AiPrivacy, useAi } from './coach';
 import { applyFeedback, createSession, decodeJson, parseFeedback, reportText, sessionContext, validateReport, type InterviewSession } from './interview-model';
 import { startSpeechSession, type SpeechSession } from './speech-session';
+import { materialQuestion, recommendMaterials, useMaterials } from './materials';
 
 export function Interview({ active, onProfile, onIntro, onPrepare }: { active: boolean; onProfile: () => void; onIntro: () => void; onPrepare: () => void }) {
   const c = usePalette(), state = useCareer(), ai = useAi(active), s = state.session;
+  const { items } = useMaterials();
   const [error, setError] = useState(''), [hint, setHint] = useState(false), [recording, setRecording] = useState(false), [finishing, setFinishing] = useState(false), [elapsed, setElapsed] = useState(0), [exporting, setExporting] = useState(false);
   const scroll = useRef<ScrollView>(null), speech = useRef<SpeechSession | null>(null), visible = useRef(active); visible.current = active;
   const account = useRef(owner()).current;
@@ -30,7 +32,7 @@ export function Interview({ active, onProfile, onIntro, onPrepare }: { active: b
     return () => clearInterval(timer);
   }, [active, s?.id, s?.index, s?.finished, !!turn?.feedback]);
   const start = () => {
-    const begin = () => { stopSpeech(); ai.clear(); setError(''); updateState(st => ({ ...st, session: createSession(st.profile) }), account); };
+    const begin = () => { stopSpeech(); ai.clear(); setError(''); updateState(st => { const targeted = recommendMaterials(items, st.profile).find(r => r.item.kind === '考点' && r.item.roles.includes(st.profile.role)); return { ...st, session: createSession(st.profile, targeted ? materialQuestion(targeted.item) : undefined) }; }, account); };
     if (s && !s.report) Alert.alert('开始新一轮？', '当前未完成的练习将被替换。已完成的复盘仍保留。', [{ text: '继续当前练习', style: 'cancel' }, { text: '开始新一轮', onPress: begin }]); else begin();
   };
   const record = () => {
