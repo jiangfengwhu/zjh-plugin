@@ -4,6 +4,6 @@
   "accent": "#146747",
   "appId": "career-rescue",
   "version": "1.0.0",
-  "releaseNotes": "语音录入改为按住说话、松开结束；按住期间停顿可继续录入，自动拼接多段识别结果。",
+  "releaseNotes": "语音录入改为点击开始、点击结束；录入中停顿不会自动退出，自动拼接多段识别结果。",
   "moduleBase": 5100000
 }

@@ -10,7 +10,7 @@ import type { ShareParams } from '@zijinhua/app-sdk';
 import { checklist, questions, resources, roles, type Resource } from './content';
 import { app, data, owner, copy, draftIntro, toggleCheck, updateState, useCareer, type Profile } from './model';
 import { Action, Card, IconAction, styles, usePalette, type Palette } from './ui';
-import { holdSpeech, type HeldSpeechSession } from './hold-speech';
+import { startSpeechSession, type SpeechSession } from './speech-session';
 
 const AnimatedPager = Animated.createAnimatedComponent(PagerView);
 const tabs = ['今晚准备', '面试练习', '资料袋'];
@@ -84,7 +84,7 @@ const Practice = memo(function Practice({ profile, active, requested }: { profil
   const pool = useMemo(() => questions.filter(q => q.role === '通用' || q.role === profile.role), [profile.role]);
   const [index, setIndex] = useState(0), [hint, setHint] = useState(false), [answer, setAnswer] = useState(''), [listening, setListening] = useState(false), [started, setStarted] = useState<number | null>(null), [seconds, setSeconds] = useState(0);
   const [finishing, setFinishing] = useState(false);
-  const question = pool[index % pool.length], speech = useRef<(HeldSpeechSession & { save: () => void }) | null>(null);
+  const question = pool[index % pool.length], speech = useRef<(SpeechSession & { save: () => void }) | null>(null);
   const cancelRecording = useCallback(() => { speech.current?.save(); speech.current?.cancel(); speech.current = null; setListening(false); setFinishing(false); }, []);
   useEffect(() => { setIndex(Math.max(0, pool.findIndex(q => q.id === requested.id))); }, [requested, pool]);
   useEffect(() => { cancelRecording(); setAnswer(state.answers[question.id] || ''); setHint(false); setStarted(null); setSeconds(0); ai.clear(); }, [question.id, cancelRecording]);
@@ -97,21 +97,21 @@ const Practice = memo(function Practice({ profile, active, requested }: { profil
     Keyboard.dismiss(); setListening(true);
     const account = owner(), id = question.id;
     let latest = answer;
-    const session: HeldSpeechSession & { save: () => void } = { ...holdSpeech(app.phone.speech, answer, text => { if (speech.current === session && owner() === account) { latest = text; setAnswer(text); } }),
+    const session: SpeechSession & { save: () => void } = { ...startSpeechSession(app.phone.speech, answer, text => { if (speech.current === session && owner() === account) { latest = text; setAnswer(text); } }),
       save: () => updateState(s => ({ ...s, answers: { ...s.answers, [id]: latest } }), account) };
     speech.current = session;
     void session.done.catch(e => { if (speech.current === session && owner() === account) fail(e); }).finally(() => {
       if (speech.current === session) { session.save(); speech.current = null; setListening(false); setFinishing(false); }
     });
   };
-  const releaseRecording = () => { const session = speech.current; if (!session) return; setListening(false); setFinishing(true); session.save(); session.release(); };
+  const stopRecording = () => { const session = speech.current; if (!session) return; setListening(false); setFinishing(true); session.save(); session.stop(); };
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
     <View style={styles.spread}><Section c={c} title="把答案说出来" note={`${profile.role} · ${pool.length} 道核心问题`} /><IconAction label="分享这道练习" onPress={() => share({ question: question.id }, question.title)}><Share2 size={20} color={c.text} /></IconAction></View>
     <View style={{ backgroundColor: c.hero, borderRadius: 23, padding: 22, gap: 15 }}><View style={styles.spread}><Text style={{ color: c.heroText, fontWeight: '700', fontSize: 13 }}>{question.tag}</Text><Text style={{ color: c.heroText, fontSize: 13 }}>{index + 1} / {pool.length}</Text></View><Text style={[styles.title, { color: c.heroText }]}>{question.title}</Text><View style={styles.spread}><Pressable accessibilityRole="button" onPress={() => started ? setStarted(null) : (setSeconds(0), setStarted(Date.now()))} style={({ pressed }) => ({ minHeight: 44, paddingVertical: 10, opacity: pressed ? .6 : 1 })}><Text style={{ color: c.heroText, fontWeight: '700' }}>{started ? `计时 ${seconds} 秒 · 停止` : seconds ? `用了 ${seconds} 秒 · 再练一次` : '开始计时 · 建议 60–90 秒'}</Text></Pressable><IconAction label="下一题" onPress={next}><ArrowRight size={22} color={c.heroText} /></IconAction></View></View>
     <Action label={hint ? '收起回答思路' : '卡住了？看看回答思路'} subtle icon={<Lightbulb size={18} color={c.text} />} onPress={() => setHint(v => !v)} />
     {hint ? <Card><Text style={[styles.body, { color: c.muted }]}>{question.intent}</Text>{question.outline.map((line, i) => <Text key={line} style={[styles.body, { color: c.text }]}>{i + 1}. {line}</Text>)}<Text style={[styles.small, { color: c.orange }]}>{question.avoid}</Text></Card> : null}
     <View style={styles.spread}><Text style={[styles.heading, { color: c.text }]}>你的回答</Text><Text style={[styles.small, { color: c.muted }]}>本机自动保存</Text></View><TextInput value={answer} onChangeText={setAnswer} multiline maxLength={8000} editable={!listening && !finishing} placeholder="先按自己的方式说。真实经历比漂亮话更重要。" placeholderTextColor={c.muted} style={[fieldStyle(c), { minHeight: 140 }]} />
-    <View style={styles.row}><Pressable accessibilityRole="button" accessibilityLabel={listening ? '正在录入，松开结束' : finishing ? '正在整理语音' : '按住说话，松开结束'} accessibilityState={{ disabled: finishing, busy: finishing }} disabled={finishing} onPressIn={record} onPressOut={releaseRecording} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: listening ? c.primary : c.field, opacity: finishing ? .6 : pressed ? .8 : 1 }]}>{finishing ? <ActivityIndicator size="small" color={c.text} /> : <Mic size={18} color={listening ? c.onPrimary : c.text} />}<Text style={{ color: listening ? c.onPrimary : c.text, fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'center' }}>{finishing ? '正在整理…' : listening ? '松开结束' : '按住说话'}</Text></Pressable><Action label="请教练点评" busy={ai.busy} disabled={!answer.trim() || listening || finishing} icon={<Sparkles size={17} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); void ai.run('针对回答，依次给出：讲得好的地方、最值得补充的两点、一版精简表达、面试官可能追问的一道题。总计不超过 650 字。', JSON.stringify({ profile, question: question.title, answer })); }} /></View><AiResult ai={ai} c={c} />
+    <View style={styles.row}><Action label={finishing ? '正在整理…' : listening ? '结束录入' : '开始录入'} subtle={!listening} busy={finishing} icon={listening ? <Square size={18} color={c.onPrimary} /> : <Mic size={18} color={c.text} />} onPress={() => speech.current ? stopRecording() : record()} style={{ flex: 1 }} /><Action label="请教练点评" busy={ai.busy} disabled={!answer.trim() || listening || finishing} icon={<Sparkles size={17} color={c.onPrimary} />} style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); void ai.run('针对回答，依次给出：讲得好的地方、最值得补充的两点、一版精简表达、面试官可能追问的一道题。总计不超过 650 字。', JSON.stringify({ profile, question: question.title, answer })); }} /></View><AiResult ai={ai} c={c} />
     <View style={styles.row}><Action label="复制回答" disabled={!answer.trim()} subtle onPress={() => copy(answer)} style={{ flex: 1 }} /><Action label="换一道题" subtle onPress={next} style={{ flex: 1 }} /></View>
   </ScrollView>;
 });
