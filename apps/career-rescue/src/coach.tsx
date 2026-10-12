@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { Copy, Sparkles, Square } from 'lucide-react-native';
-import { app, copy, owner, readCareer, updateState, useCareer } from './model';
+import { app, copy, owner, readCareer, updateState, useAiAllowed } from './model';
 import { Action, Card, IconAction, styles, usePalette, type Palette } from './ui';
 
 export function useAi(active = true) {
-  const allowed = useCareer().aiAllowed;
+  const allowed = useAiAllowed();
   const [busy, setBusy] = useState(false), [output, setOutput] = useState(''), [error, setError] = useState('');
   const request = useRef<AbortController | null>(null);
   const cancel = useCallback(() => { request.current?.abort(); request.current = null; setBusy(false); }, []);
@@ -40,7 +40,7 @@ export function AiResult({ ai, c }: { ai: ReturnType<typeof useAi>; c: Palette }
   </Card>;
 }
 export function AiPrivacy() {
-  const c = usePalette(), { aiAllowed } = useCareer();
+  const c = usePalette(), aiAllowed = useAiAllowed();
   if (aiAllowed) return null;
   return <View style={{ padding: 8, borderRadius: 8, backgroundColor: c.wash, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={[styles.small, { color: c.text, flex: 1 }]}>资料与回答将发给你配置的AI，请先去掉私密信息。</Text><Action label="允许AI处理" subtle onPress={() => updateState(s => ({ ...s, aiAllowed: true }))} /></View>;
 }

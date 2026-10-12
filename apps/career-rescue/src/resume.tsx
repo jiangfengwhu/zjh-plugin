@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
 import { Copy, FileText, Image, Save, Square, Upload } from 'lucide-react-native';
-import { app, data, owner, roleName, updateState, useCareer } from './model';
+import { app, data, owner, roleName, updateState, useCareerField } from './model';
 import { AiPrivacy, useAi } from './coach';
 import { Action, Card, IconAction, styles, usePalette } from './ui';
 import { blankJob, getWorkspace, parseResumeReview, saveResume, uniqueId, updateWorkspace, useWorkspace, type Job, type ResumeReview } from './workspace';
@@ -18,7 +18,7 @@ const Review = memo(function Review({ result, stale, onAdopt, onPractice }: { re
   </View>;
 });
 export const Resume = memo(function Resume({ active, onProfile, onTrack, onPractice, onTopic }: { active: boolean; onProfile: () => void; onTrack: (job: Job) => void; onPractice: (q: Question) => void; onTopic: (topic: string) => void }) {
-  const c = usePalette(), career = useCareer(), work = useWorkspace(), ai = useAi(active), account = owner();
+  const c = usePalette(), career = { profile: useCareerField('profile') }, work = useWorkspace(), ai = useAi(active), account = owner();
   const [draft, setDraft] = useState(work.resume), latest = useRef(draft), dirty = useRef(false), [showInput, setShowInput] = useState(!work.resume), [showJd, setShowJd] = useState(!career.profile.jd), [jd, setJd] = useState(career.profile.jd), latestJd = useRef(jd), jdDirty = useRef(false);
   const [importing, setImporting] = useState(false), [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);

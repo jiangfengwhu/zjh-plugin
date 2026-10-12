@@ -14,21 +14,23 @@ const key = (j: Job) => j.id;
 const contentStyle = { paddingHorizontal: 14, paddingBottom: 24 };
 const fail = (e: unknown) => app.toast.show(e instanceof Error ? e.message : '操作失败，请重试', 'error');
 export function formatTime(time: number | null) { if (!time) return '未设日期'; const d = new Date(time); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
-const JobRow = memo(function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
+const JobRow = memo(function JobRow({ job, overdue, onOpen }: { job: Job; overdue: boolean; onOpen: (id: string) => void }) {
   const c = usePalette();
-  return <Pressable accessibilityRole="button" onPress={() => onOpen(job.id)} style={({ pressed }) => ({ paddingVertical: 12, borderBottomWidth: 1, borderColor: c.line, gap: 5, opacity: pressed ? .65 : 1 })}><View style={styles.spread}><Text numberOfLines={1} style={[styles.heading, { color: c.text, flex: 1 }]}>{job.company} · {job.title}</Text><Text style={[styles.small, { color: c.primary }]}>{job.stage}</Text></View><Text style={[styles.body, { color: c.text }]}>{job.nextStep || '下一步：补充行动与时间'}</Text><View style={styles.spread}><Text style={[styles.small, { color: job.nextAt && job.nextAt < Date.now() && job.stage !== '结束' ? c.orange : c.muted }]}>{formatTime(job.nextAt)}{job.nextAt && job.nextAt < Date.now() && job.stage !== '结束' ? ' · 日期已过，请核对进展' : ''}</Text><Text style={[styles.small, { color: c.muted }]}>{job.reminderId ? '已设置提醒' : job.url ? '有原岗位链接' : '手动记录'}</Text></View></Pressable>;
+  return <Pressable accessibilityRole="button" onPress={() => onOpen(job.id)} style={({ pressed }) => ({ paddingVertical: 12, borderBottomWidth: 1, borderColor: c.line, gap: 5, opacity: pressed ? .65 : 1 })}><View style={styles.spread}><Text numberOfLines={1} style={[styles.heading, { color: c.text, flex: 1 }]}>{job.company} · {job.title}</Text><Text style={[styles.small, { color: c.primary }]}>{job.stage}</Text></View><Text style={[styles.body, { color: c.text }]}>{job.nextStep || '下一步：补充行动与时间'}</Text><View style={styles.spread}><Text style={[styles.small, { color: overdue ? c.orange : c.muted }]}>{formatTime(job.nextAt)}{overdue ? ' · 日期已过，请核对进展' : ''}</Text><Text style={[styles.small, { color: c.muted }]}>{job.reminderId ? '已设置提醒' : job.url ? '有原岗位链接' : '手动记录'}</Text></View></Pressable>;
 });
 
 export const Jobs = memo(function Jobs({ active, request, onInterview, onTopic }: { active: boolean; request: { job?: Job; id?: string; at: number }; onInterview: () => void; onTopic: (topic: string) => void }) {
   const c = usePalette(), work = useWorkspace(), account = owner(), visible = useRef(active); visible.current = active;
   const [filter, setFilter] = useState('待处理'), [draft, setDraft] = useState<Job | null>(null), [picker, setPicker] = useState<'date' | 'time' | null>(null), [error, setError] = useState('');
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { if (active) setNow(Date.now()); }, [active, request.at]);
   const modal = useRef<BottomSheetModal>(null), handled = useRef(0), mounted = useRef(true), reminderBusy = useRef(false);
   useEffect(() => () => { mounted.current = false; }, []);
   const open = useCallback((id: string) => { const value = getWorkspace().jobs.find(j => j.id === id); if (!value) return; setDraft({ ...value }); setError(''); modal.current?.present(); }, []);
   useEffect(() => { if (request.at === handled.current) return; handled.current = request.at; const value = request.job || getWorkspace().jobs.find(j => j.id === request.id); if (value) { setDraft({ ...value }); setError(''); modal.current?.present(); } }, [request]);
   useEffect(() => { if (!active) { modal.current?.dismiss(); setPicker(null); } }, [active]);
   const rows = useMemo(() => work.jobs.filter(j => filter === '全部' || filter === '待处理' && j.stage !== '结束' || j.stage === filter).sort((a,b) => (a.nextAt || Infinity) - (b.nextAt || Infinity) || b.updatedAt - a.updatedAt), [work.jobs, filter]);
-  const render = useCallback(({ item }: { item: Job }) => <JobRow job={item} onOpen={open} />, [open]);
+  const render = useCallback(({ item }: { item: Job }) => <JobRow job={item} overdue={!!item.nextAt && item.nextAt < now && item.stage !== '结束'} onOpen={open} />, [open, now]);
   const setField = (name: keyof Job, value: string | number | null) => setDraft(j => j ? { ...j, [name]: value } : j);
   const remind = async (id: string) => {
     if (reminderBusy.current || !visible.current) return;

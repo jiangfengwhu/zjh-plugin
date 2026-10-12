@@ -8,7 +8,7 @@ import { BottomSheetModal, BottomSheetModalProvider, BottomSheetBackdrop, Bottom
 import { ArrowRight, BriefcaseBusiness, Check, ChevronRight, Copy, Lightbulb, Mic, Settings2, Share2, Sparkles, Square } from 'lucide-react-native';
 import type { ShareParams } from '@zijinhua/app-sdk';
 import { checklist, questions, roles, type Question } from './content';
-import { app, data, owner, copy, draftIntro, toggleCheck, updateState, useCareer, roleName, aiProfile, profileContext, type Profile } from './model';
+import { app, data, owner, copy, draftIntro, toggleCheck, updateState, useCareer, useCareerField, useAiAllowed, usePendingSession, useAccount, readCareer, roleName, aiProfile, profileContext, type Profile } from './model';
 import { Action, Card, IconAction, styles, usePalette, type Palette } from './ui';
 import { startSpeechSession, type SpeechSession } from './speech-session';
 import { useAi, AiResult, AiPrivacy } from './coach';
@@ -33,7 +33,7 @@ const Section = ({ title, note, c }: { title: string; note?: string; c: Palette 
 function ProfileEditor({ profile, onSave, c }: { profile: Profile; onSave: (p: Profile) => void; c: Palette }) {
   const [draft, setDraft] = useState(profile);
   const [details, setDetails] = useState(false);
-  const state = useCareer(), account = owner();
+  const state = { aiAllowed: useAiAllowed() }, account = owner();
   const field = (key: keyof Profile, label: string, placeholder: string, limit: number, multiline = false) => <View><Text style={[styles.label, { color: c.text }]}>{label}</Text><BottomSheetTextInput accessibilityLabel={label} style={[fieldStyle(c), multiline && { minHeight: 112 }]} placeholder={placeholder} placeholderTextColor={c.muted} multiline={multiline} maxLength={limit} value={draft[key]} onChangeText={text => setDraft(p => ({ ...p, [key]: text }))} /></View>;
   return <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
     <Section c={c} title="这次面试" note="写到哪算哪，随时可以补充。内容保存在当前账号本机。" />
@@ -51,7 +51,7 @@ function ProfileEditor({ profile, onSave, c }: { profile: Profile; onSave: (p: P
   </BottomSheetScrollView>;
 }
 const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onPractice, onInterview, onQuick, onIntro, onResource }: { profile: Profile; checked: string[]; active: boolean; onProfile: () => void; onPractice: (id?: string) => void; onInterview: () => void; onQuick: () => void; onIntro: () => void; onResource: (id: string) => void }) {
-  const c = usePalette(), ai = useAi(active), state = useCareer(), context = profileContext(profile);
+  const c = usePalette(), ai = useAi(active), state = { plan: useCareerField('plan'), history: useCareerField('history') }, pendingSession = usePendingSession(), context = profileContext(profile);
   const currentPlan = state.plan?.context === context ? state.plan.text : '';
   const generate = async () => {
     if (!profile.jd.trim() && !profile.experience.trim()) { onProfile(); app.toast.show('补充一段经历或 JD，就能给你更具体的准备重点'); return; }
@@ -64,7 +64,7 @@ const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onP
     <Pressable accessibilityRole="button" onPress={() => { if (item.action === 'profile') onProfile(); else if (item.action === 'intro') onIntro(); else if (item.action === 'logistics') onResource('day-before'); else if (item.action === 'practice') onInterview(); else onPractice(item.action); }} style={({ pressed }) => ({ flex: 1, gap: 3, paddingVertical: 5, opacity: pressed ? .65 : 1 })}><Text style={[styles.heading, { color: c.text }]}>{item.title}</Text><Text style={[styles.small, { color: c.muted }]}>{item.detail}</Text></Pressable><ChevronRight size={18} color={c.muted} />
   </View>, [checked, c, onProfile, onPractice, onInterview, onIntro, onResource]);
   return <FlashList data={checklist} keyExtractor={taskKey} renderItem={renderTask} contentContainerStyle={{ padding: 14, paddingBottom: 24 }} extraData={checked} ListHeaderComponent={<View style={{ gap: 12, paddingBottom: 12 }}>
-    <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 10, padding: 12, gap: 8 }}><Text style={[styles.heading, { color: c.text }]}>有资料可查，有答案可练</Text><Text style={[styles.small, { color: c.muted }]}>核对岗位 → 学考点 → 开口回答 → 补薄弱点</Text><View style={styles.row}><Action label={state.session && !state.session.report ? '继续陪练' : '整轮面试陪练'} onPress={onInterview} style={{ flex: 1 }} /><Action label="面前回顾" subtle onPress={onQuick} style={{ flex: 1 }} /></View></View>
+    <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 10, padding: 12, gap: 8 }}><Text style={[styles.heading, { color: c.text }]}>有资料可查，有答案可练</Text><Text style={[styles.small, { color: c.muted }]}>核对岗位 → 学考点 → 开口回答 → 补薄弱点</Text><View style={styles.row}><Action label={pendingSession ? '继续陪练' : '整轮面试陪练'} onPress={onInterview} style={{ flex: 1 }} /><Action label="面前回顾" subtle onPress={onQuick} style={{ flex: 1 }} /></View></View>
     <View style={styles.spread}><View style={{ flex: 1 }}><Section c={c} title={roleName(profile)} note={[profile.company, profile.round, profile.jd ? '已提供 JD' : '尚未提供 JD'].filter(Boolean).join(' · ')} /></View><Action label="调整" subtle icon={<Settings2 size={16} color={c.text} />} onPress={onProfile} /></View>
     {profile.concern ? <Text style={[styles.body, { color: c.muted }]}>这次先解决：{profile.concern}</Text> : null}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Action label="准备自我介绍" subtle onPress={onIntro} style={{ flexGrow: 1 }} /><Action label={currentPlan ? '重新整理准备重点' : '帮我找准备重点'} busy={ai.busy} onPress={() => void generate()} style={{ flexGrow: 1 }} /></View>
@@ -73,13 +73,13 @@ const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onP
     {currentPlan ? <Card><Text style={[styles.heading, { color: c.text }]}>这次面试的准备重点</Text><Text style={[styles.small, { color: c.muted }]}>AI 生成 · 已保存在本机，离线也能回顾</Text><Text selectable style={[styles.body, { color: c.text }]}>{currentPlan}</Text><Action label="带着这些重点去练一轮" onPress={onInterview} /></Card> : null}
     {state.history.length ? <View style={{ gap: 12 }}><Section c={c} title="上次卡住的，这次补上" note="最近 10 次完整或部分复盘，本机保存。" />{state.history.slice(0, 3).map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)}{h.profile.company ? ` · ${h.profile.company}` : ''}</Text><Text style={[styles.small, { color: c.muted }]}>{new Date(h.createdAt).toLocaleDateString()} · {h.turns.filter(t => t.answer.trim()).length} 道回答</Text><Text style={[styles.body, { color: c.text }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开复盘，重答薄弱题" subtle onPress={() => {
       const account = owner(); const open = () => { updateState(s => ({ ...s, session: h }), account); onInterview(); };
-      if (state.session && !state.session.report && state.session.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '继续陪练', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open();
+      if (readCareer().session && !readCareer().session!.report && readCareer().session!.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '继续陪练', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open();
     }} /></Card>)}{state.history.length > 3 ? <Action label={`查看全部 ${state.history.length} 份复盘`} subtle onPress={() => onResource('history')} /> : null}</View> : null}
     <View style={styles.spread}><Section c={c} title="补充准备清单" note="点内容开始准备，左侧标记完成。" /><Text style={{ color: c.primary, fontWeight: '800', fontSize: 17 }}>{checked.length}/{checklist.length}</Text></View><View style={{ height: 5, borderRadius: 4, backgroundColor: c.line, overflow: 'hidden' }}><View style={{ width: `${checked.length / checklist.length * 100}%`, height: 5, backgroundColor: c.primary }} /></View>
   </View>} />;
 });
 const Practice = memo(function Practice({ profile, active, requested }: { profile: Profile; active: boolean; requested: { id?: string; question?: Question; at: number } }) {
-  const c = usePalette(), state = useCareer(), ai = useAi(active);
+  const c = usePalette(), state = { answers: useCareerField('answers') }, ai = useAi(active);
   const pool = useMemo(() => { const base = questions.filter(q => q.role === '通用' || q.role === profile.role); return requested.question ? [requested.question, ...base.filter(q => q.id !== requested.question!.id)] : base; }, [profile.role, requested.question]);
   const [index, setIndex] = useState(0), [hint, setHint] = useState(false), [answer, setAnswer] = useState(''), [listening, setListening] = useState(false), [started, setStarted] = useState<number | null>(null), [seconds, setSeconds] = useState(0);
   const [finishing, setFinishing] = useState(false);
@@ -116,7 +116,7 @@ const Practice = memo(function Practice({ profile, active, requested }: { profil
   </ScrollView>;
 });
 function IntroEditor({ profile, active }: { profile: Profile; active: boolean }) {
-  const c = usePalette(), state = useCareer(), ai = useAi(active), account = useRef(owner()).current;
+  const c = usePalette(), state = { intro: useCareerField('intro') }, ai = useAi(active), account = useRef(owner()).current;
   const [text, setText] = useState(() => state.intro || draftIntro(profile));
   const save = (value: string) => { setText(value); updateState(s => ({ ...s, intro: value }), account); };
   return <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}><AiPrivacy /><Section c={c} title="一分钟自我介绍" note="先有一版，再练自然。括号里的内容需要你自己补齐。" />
@@ -126,7 +126,7 @@ function IntroEditor({ profile, active }: { profile: Profile; active: boolean })
   </BottomSheetScrollView>;
 }
 export default function CareerRescue() {
-  const c = usePalette(), state = useCareer(), account = owner(), previousAccount = useRef(account), focused = useIsFocused();
+  const c = usePalette(), state = { profile: useCareerField('profile'), checked: useCareerField('checked'), saved: useCareerField('saved'), history: useCareerField('history') }, account = useAccount(), previousAccount = useRef(account), focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   useEffect(() => { const listener = AppState.addEventListener('change', value => setForeground(value === 'active')); return () => listener.remove(); }, []);
   const visible = focused && foreground;
@@ -173,7 +173,7 @@ export default function CareerRescue() {
       <View key="resources" collapsable={false} style={{ flex: 1 }}><Library profile={profile} active={tab === 3 && visible} saved={saved} onPractice={practiceMaterial} onTrack={trackMaterial} requested={libraryRequest} /></View>
     </AnimatedPager>
     <BottomSheetModal ref={modal} snapPoints={snapPoints} enableDynamicSizing={false} enablePanDownToClose backdropComponent={backdrop} keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" backgroundStyle={{ backgroundColor: c.surface }} handleIndicatorStyle={{ backgroundColor: c.muted }} onDismiss={() => { setSheet(null); Keyboard.dismiss(); }}>
-      {sheet === 'quick' ? <QuickCard key={account} /> : sheet === 'history' ? <BottomSheetScrollView contentContainerStyle={styles.content}><Section title="我的面试复盘" c={c} />{state.history.map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)} · {new Date(h.createdAt).toLocaleDateString()}</Text><Text style={[styles.body, { color: c.muted }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开这份复盘" subtle onPress={() => { const open = () => { updateState(s => ({ ...s, session: h }), account); modal.current?.dismiss(); openInterview(); }; if (state.session && !state.session.report && state.session.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '取消', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open(); }} /></Card>)}</BottomSheetScrollView> : sheet === 'profile' ? <ProfileEditor key={account} profile={profile} c={c} onSave={profile => { updateState(s => ({ ...s, profile }), account); modal.current?.dismiss(); app.toast.show('准备方向已更新', 'success'); }} /> : sheet === 'intro' ? <IntroEditor key={account} profile={profile} active={visible} /> : <View style={{ minHeight: 1 }} />}
+      {sheet === 'quick' ? <QuickCard key={account} /> : sheet === 'history' ? <BottomSheetScrollView contentContainerStyle={styles.content}><Section title="我的面试复盘" c={c} />{state.history.map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)} · {new Date(h.createdAt).toLocaleDateString()}</Text><Text style={[styles.body, { color: c.muted }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开这份复盘" subtle onPress={() => { const open = () => { updateState(s => ({ ...s, session: h }), account); modal.current?.dismiss(); openInterview(); }; if (readCareer().session && !readCareer().session!.report && readCareer().session!.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '取消', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open(); }} /></Card>)}</BottomSheetScrollView> : sheet === 'profile' ? <ProfileEditor key={account} profile={profile} c={c} onSave={profile => { updateState(s => ({ ...s, profile }), account); modal.current?.dismiss(); app.toast.show('准备方向已更新', 'success'); }} /> : sheet === 'intro' ? <IntroEditor key={account} profile={profile} active={visible} /> : <View style={{ minHeight: 1 }} />}
     </BottomSheetModal>
   </SafeAreaView></BottomSheetModalProvider>;
 }

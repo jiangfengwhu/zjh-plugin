@@ -9,9 +9,9 @@ export type State = { profile: Profile; checked: string[]; answers: Record<strin
 const empty: State = { profile: { role: roles[0], target: '', company: '', round: '业务面', concern: '', name: '', background: '', experience: '', jd: '' }, checked: [], answers: {}, intro: '', saved: [], aiAllowed: false, plan: null, session: null, history: [] };
 const key = 'career-rescue.v1';
 export const owner = () => app.auth.getUser()?.id || 'guest';
-export function readCareer(): State {
+function parseCareer(raw: string): State {
   try {
-    const value = JSON.parse(data.storage.get(key) || 'null');
+    const value = JSON.parse(raw);
     if (!value || typeof value !== 'object') return empty;
     const text = (v: unknown, max = 8000) => typeof v === 'string' ? v.slice(0, max) : '';
     const p = value.profile || {};
@@ -20,10 +20,22 @@ export function readCareer(): State {
     return { profile: { role: (roles as readonly string[]).includes(p.role) ? p.role : roles[0], target: text(p.target, 80), company: text(p.company, 80), round: text(p.round, 40) || '业务面', concern: text(p.concern, 600), name: text(p.name, 40), background: text(p.background, 300), experience: text(p.experience, 4000), jd: text(p.jd, 6000) }, checked: Array.isArray(value.checked) ? [...new Set<string>(value.checked.filter((id: unknown) => checklist.some(item => item.id === id)))] : [], answers, intro: text(value.intro), saved: Array.isArray(value.saved) ? [...new Set<string>(value.saved.filter((id: unknown): id is string => typeof id === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(id)))].slice(-300) : [], aiAllowed: value.aiAllowed === true, plan: typeof value.plan?.text === 'string' && typeof value.plan?.context === 'string' ? { context: text(value.plan.context, 14000), text: text(value.plan.text, 6000) } : null, session: readSession(value.session), history: Array.isArray(value.history) ? value.history.map(readSession).filter((s: InterviewSession | null): s is InterviewSession => !!s?.report).slice(0, 10) : [] };
   } catch { return empty; }
 }
+let cached: { account: string; raw: string; value: State } | null = null;
+export function readCareer(): State {
+  const account = owner(), raw = data.storage.get(key) || 'null';
+  if (cached?.account === account && cached.raw === raw) return cached.value;
+  const value = parseCareer(raw); cached = { account, raw, value }; return value;
+}
 const snapshot = () => `${owner()}|${data.storage.get(key) || ''}`;
 const subscribe = (listener: () => void) => { const a = data.storage.subscribe(key, listener), b = app.auth.subscribe(listener); return () => { a(); b(); }; };
 export function useCareer() { const raw = useSyncExternalStore(subscribe, snapshot, snapshot); return useMemo(readCareer, [raw]); }
-export function updateState(change: (state: State) => State, expectedOwner = owner()) { if (expectedOwner !== owner()) return; data.storage.set(key, JSON.stringify(change(readCareer()))); }
+export function useAccount() { return useSyncExternalStore(app.auth.subscribe, owner, owner); }
+export function useCareerField<K extends keyof State>(key: K): State[K] { const get = () => readCareer()[key]; return useSyncExternalStore(subscribe, get, get); }
+const aiSnapshot = () => `${owner()}|${readCareer().aiAllowed}`;
+export function useAiAllowed() { return useSyncExternalStore(subscribe, aiSnapshot, aiSnapshot).endsWith('|true'); }
+const sessionSnapshot = () => `${owner()}|${!!readCareer().session && !readCareer().session?.report}`;
+export function usePendingSession() { return useSyncExternalStore(subscribe, sessionSnapshot, sessionSnapshot).endsWith('|true'); }
+export function updateState(change: (state: State) => State, expectedOwner = owner()) { if (expectedOwner !== owner()) return; const value = change(readCareer()), raw = JSON.stringify(value); cached = { account: expectedOwner, raw, value }; data.storage.set(key, raw); }
 export const roleName = (p: Profile) => p.target.trim() || p.role;
 export function aiProfile(p: Profile) { const { name, ...relevant } = p; return relevant; }
 export const profileContext = (p: Profile) => JSON.stringify(aiProfile(p));
