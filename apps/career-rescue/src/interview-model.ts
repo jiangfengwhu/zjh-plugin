@@ -5,7 +5,9 @@ export type Feedback = { evidence: string; good: string; gap: string; example: s
 export type Turn = { title: string; hint: string; kind: string; answer: string; feedback: Feedback | null };
 export type Report = { strength: string; priorities: { turnIndex: number; issue: string; action: string }[]; reminder: string };
 export type Revision = { turnIndex: number; answer: string; comparison: string };
-export type InterviewSession = { id: string; createdAt: number; profile: Profile; turns: Turn[]; index: number; followedUp: boolean; finished: boolean; report: Report | null; revision: Revision | null };
+export const interviewModes = ['综合', '行为', '技术', '英语', '谈薪'] as const;
+export type InterviewMode = typeof interviewModes[number];
+export type InterviewSession = { id: string; createdAt: number; mode: InterviewMode; resume: string; profile: Profile; turns: Turn[]; index: number; followedUp: boolean; finished: boolean; report: Report | null; revision: Revision | null };
 
 const text = (v: unknown, max = 4000): string => typeof v === 'string' ? v.slice(0, max) : '';
 function object(v: unknown): Record<string, any> { return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, any> : {}; }
@@ -22,12 +24,14 @@ export function readSession(value: unknown): InterviewSession | null {
   try { if (s.report) report = validateReport(s.report, turns); } catch {}
   const r = object(s.revision);
   const revision = Number.isInteger(r.turnIndex) && turns[r.turnIndex]?.answer ? { turnIndex: r.turnIndex, answer: text(r.answer), comparison: text(r.comparison, 4000) } : null;
-  return { id: text(s.id, 100), createdAt: s.createdAt, profile, turns, index: s.index, followedUp: s.followedUp === true, finished: s.finished === true, report, revision };
+  return { id: text(s.id, 100), createdAt: s.createdAt, mode: (interviewModes as readonly unknown[]).includes(s.mode) ? s.mode as InterviewMode : '综合', resume: text(s.resume, 16000), profile, turns, index: s.index, followedUp: s.followedUp === true, finished: s.finished === true, report, revision };
 }
-export function createSession(profile: Profile, targeted?: Question): InterviewSession {
+export function createSession(profile: Profile, targeted?: Question, mode: InterviewMode = '综合', resume = ''): InterviewSession {
   const specialist = targeted || questions.find(q => q.role === profile.role) || questions.find(q => q.id === 'team')!;
-  const seed = [questions.find(q => q.id === 'intro')!, questions.find(q => q.id === 'project')!, specialist, questions.find(q => q.id === 'why')!, questions.find(q => q.id === 'ask')!];
-  return { id: `practice-${Date.now()}`, createdAt: Date.now(), profile: { ...profile }, turns: seed.map(q => ({ title: q.title, hint: q.outline.join('\n'), kind: q.id, answer: '', feedback: null })), index: 0, followedUp: false, finished: false, report: null, revision: null };
+  const find = (id: string) => questions.find(q => q.id === id)!;
+  const seed = mode === '行为' ? ['intro','project','failure','gap','quit'].map(find) : mode === '谈薪' ? ['why','salary','offer-check','quit','ask'].map(find) : mode === '英语' ? ['intro','project','team','why','ask'].map(find) : mode === '技术' ? [find('intro'), find('project'), specialist, find(profile.role === '前端' ? 'front-perf' : profile.role === '数据分析' ? 'data-sql' : 'back-slow'), find('ask')] : [find('intro'), find('project'), specialist, find('why'), find('ask')];
+  const english = { intro: 'Please introduce yourself and explain why this role interests you.', project: 'Tell me about a project and your own contribution.', team: 'Tell me about a disagreement in a team and how you handled it.', why: 'Why are you interested in this role and company?', ask: 'What questions would you like to ask us?' } as Record<string, string>;
+  return { id: `practice-${Date.now()}`, createdAt: Date.now(), mode, resume: resume.slice(0, 16000), profile: { ...profile }, turns: seed.map(q => ({ title: mode === '英语' ? english[q.id] : q.title, hint: q.outline.join('\n'), kind: q.id, answer: '', feedback: null })), index: 0, followedUp: false, finished: false, report: null, revision: null };
 }
 export function decodeJson(raw: string): unknown {
   const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
@@ -61,7 +65,7 @@ export function applyFeedback(s: InterviewSession, reply: ReturnType<typeof pars
 }
 export function sessionContext(s: InterviewSession) {
   const { name, ...profile } = s.profile;
-  return { profile, answers: s.turns.slice(0, s.index + 1).map((t, i) => ({ turnIndex: i, question: t.title, referencePoints: t.hint, answer: t.answer, feedback: t.feedback })) };
+  return { mode: s.mode, profile, resume: s.resume, answers: s.turns.slice(0, s.index + 1).map((t, i) => ({ turnIndex: i, question: t.title, referencePoints: t.hint, answer: t.answer, feedback: t.feedback })) };
 }
 export function reportText(s: InterviewSession): string {
   return `${s.profile.target || s.profile.role}${s.profile.company ? ' · ' + s.profile.company : ''}\n${s.profile.round} · ${new Date(s.createdAt).toLocaleDateString()}\n\n${s.turns.filter(t => t.answer.trim()).map((t, i) => `${i + 1}. ${t.title}\n我的回答：${t.answer}\n${t.feedback ? `优点：${t.feedback.good}\n待补充：${t.feedback.gap}\n表达参考：${t.feedback.example}` : '尚未点评'}`).join('\n\n')}\n\n${s.report ? `本轮优势：${s.report.strength}\n\n${s.report.priorities.map((p, i) => `${i + 1}. ${p.issue}\n下一步：${p.action}`).join('\n\n')}\n\n面前回顾：${s.report.reminder}` : ''}${s.revision?.comparison ? `\n\n重答对比：${s.revision.comparison}` : ''}\n\nAI 练习建议，不预测录用结果。`;

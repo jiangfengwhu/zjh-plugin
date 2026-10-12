@@ -4,10 +4,11 @@ import { resources, type Question } from './content';
 import { app, owner, type Profile } from './model';
 
 export type Material = {
-  id: string; kind: string; title: string; summary: string; roles: string[]; tags: string[];
+  id: string; kind: string; topic?: string; title: string; summary: string; roles: string[]; tags: string[];
   level: string; minutes: number; updatedAt: string; contentVersion?: string; company?: string; interviewDate?: string;
   sources: { label: string; url: string }[]; sections: { title: string; body: string }[];
   question?: string; answerPoints: string[]; followUps: string[]; pitfalls: string[];
+  deadlineAt?: string; applicationUrl?: string;
 };
 type Catalog = { revision: number; updatedAt: string; items: Material[] };
 const device = app.scope('device').storage, account = app.scope('account').storage;
@@ -83,4 +84,15 @@ export function materialQuestion(item: Material): Question | undefined {
 }
 export function materialText(item: Material) {
   return `${item.title}\n${item.kind} · ${item.roles.join(' / ')} · 更新 ${item.updatedAt}\n\n${item.summary}\n\n${item.sections.map(s => `${s.title}\n${s.body}`).join('\n\n')}${item.question ? '\n\n练习题\n' + item.question : ''}${item.followUps.length ? '\n\n追问\n' + item.followUps.join('\n') : ''}${item.pitfalls.length ? '\n\n易错点\n' + item.pitfalls.join('\n') : ''}\n\n来源\n${item.sources.map(s => s.label + '\n' + s.url).join('\n') || '生花官方原创模板'}`;
+}
+export function materialTopic(item: Material) {
+  if (item.topic) return item.topic;
+  if (item.kind === '机会' || item.kind === '求职入口') return '机会';
+  const tags = item.tags.join(' ') + ' ' + item.title;
+  if (/简历|ATS|Resume/i.test(tags)) return '简历';
+  if (/谈薪|薪资|Offer/i.test(tags)) return '谈薪';
+  if (/校招|应届|留学|截止/.test(tags)) return '校招';
+  if (/权益|劳动|避坑|背调/.test(tags)) return '权益';
+  if (/远程|招聘|机会/.test(tags)) return '机会';
+  return '面试';
 }

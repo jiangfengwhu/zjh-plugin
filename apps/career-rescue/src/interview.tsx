@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Mic, Square } from 'lucide-react-native';
 import { Action, Card, styles, usePalette } from './ui';
 import { app, copy, data, owner, roleName, updateState, useCareer } from './model';
 import { AiPrivacy, useAi } from './coach';
-import { applyFeedback, createSession, decodeJson, parseFeedback, reportText, sessionContext, validateReport, type InterviewSession } from './interview-model';
+import { applyFeedback, createSession, decodeJson, parseFeedback, reportText, sessionContext, validateReport, interviewModes, type InterviewMode, type InterviewSession } from './interview-model';
 import { startSpeechSession, type SpeechSession } from './speech-session';
 import { materialQuestion, recommendMaterials, useMaterials } from './materials';
+import { getWorkspace } from './workspace';
 
 export function Interview({ active, onProfile, onIntro, onPrepare }: { active: boolean; onProfile: () => void; onIntro: () => void; onPrepare: () => void }) {
   const c = usePalette(), state = useCareer(), ai = useAi(active), s = state.session;
   const { items } = useMaterials();
+  const [mode, setMode] = useState<InterviewMode>(() => s?.mode || '综合');
   const [error, setError] = useState(''), [hint, setHint] = useState(false), [recording, setRecording] = useState(false), [finishing, setFinishing] = useState(false), [elapsed, setElapsed] = useState(0), [exporting, setExporting] = useState(false);
   const scroll = useRef<ScrollView>(null), speech = useRef<SpeechSession | null>(null), visible = useRef(active); visible.current = active;
   const account = useRef(owner()).current;
@@ -32,13 +34,14 @@ export function Interview({ active, onProfile, onIntro, onPrepare }: { active: b
     return () => clearInterval(timer);
   }, [active, s?.id, s?.index, s?.finished, !!turn?.feedback]);
   const start = () => {
-    const begin = () => { stopSpeech(); ai.clear(); setError(''); updateState(st => { const targeted = recommendMaterials(items, st.profile).find(r => r.item.kind === '考点' && r.item.roles.includes(st.profile.role)); return { ...st, session: createSession(st.profile, targeted ? materialQuestion(targeted.item) : undefined) }; }, account); };
+    if (mode === '技术' && !['前端','后端','数据分析'].includes(state.profile.role)) { onProfile(); app.toast.show('先选择技术岗位方向，再开始专项练习'); return; }
+    const begin = () => { stopSpeech(); ai.clear(); setError(''); updateState(st => { const targeted = recommendMaterials(items, st.profile).find(r => r.item.kind === '考点' && r.item.roles.includes(st.profile.role)); return { ...st, session: createSession(st.profile, targeted ? materialQuestion(targeted.item) : undefined, mode, getWorkspace().resume) }; }, account); };
     if (s && !s.report) Alert.alert('开始新一轮？', '当前未完成的练习将被替换。已完成的复盘仍保留。', [{ text: '继续当前练习', style: 'cancel' }, { text: '开始新一轮', onPress: begin }]); else begin();
   };
   const record = () => {
     if (!s || !active || ai.busy || speech.current) return;
     Keyboard.dismiss(); setRecording(true); setError('');
-    const session = startSpeechSession(app.phone.speech, answer, text => { if (speech.current === session && account === owner()) saveAnswer(text.slice(0, 4000)); });
+    const session = startSpeechSession(app.phone.speech, answer, text => { if (speech.current === session && account === owner()) saveAnswer(text.slice(0, 4000)); }, s.mode === '英语' ? 'en-US' : 'zh-CN');
     speech.current = session;
     void session.done.catch(e => { if (speech.current === session && account === owner()) setError(`${e instanceof Error ? e.message : '语音不可用'}。已识别内容保留，你可以修改文字后提交。`); }).finally(() => { if (speech.current === session) { speech.current = null; setRecording(false); setFinishing(false); } });
   };
@@ -46,7 +49,7 @@ export function Interview({ active, onProfile, onIntro, onPrepare }: { active: b
   const review = async () => {
     if (!s || !turn || ai.busy || !answer.trim()) return;
     Keyboard.dismiss(); setError('');
-    const raw = await ai.run('只返回JSON，不要markdown。逐题点评返回 {"evidence":"当前回答中逐字引用的一小段原话，不能修改标点","good":"基于引用的一项具体优点","gap":"最优先补充的一点","example":"仅基于已有事实的精简表达示例，未知信息用［待补充］","followUp":"仅当前kind=project且未追问时，围绕该回答提出一道具体追问；否则空字符串","nextQuestion":"按nextSeed的考察方向，结合JD、用户经历和之前回答，提出下一道具体问题，不与已回答问题重复"}。不替用户补造经历或结果。不把JD要求当成用户已有能力。', JSON.stringify({ ...sessionContext(s), currentKind: turn.kind, followedUp: s.followedUp, nextSeed: s.turns[s.index + 1]?.title || '结束' }));
+    const raw = await ai.run('只返回JSON，不要markdown。逐题点评返回 {"evidence":"当前回答中逐字引用的一小段原话，不能修改标点","good":"基于引用的一项具体优点","gap":"最优先补充的一点","example":"仅基于已有事实的精简表达示例，未知信息用［待补充］","followUp":"仅当前kind=project且未追问时，围绕该回答提出一道具体追问；否则空字符串","nextQuestion":"按nextSeed的考察方向，结合JD、用户经历和之前回答，提出下一道具体问题，不与已回答问题重复"}。不替用户补造经历或结果。不把JD要求当成用户已有能力。英语模式下问题、followUp、nextQuestion和example用英文，点评解释用中文；不能凭文字评价发音、语速或口音。技术模式核对referencePoints，指出具体概念错误。谈薪只依据用户事实讨论范围与条件，不提供虚构市场价或竞争offer。', JSON.stringify({ ...sessionContext(s), currentKind: turn.kind, followedUp: s.followedUp, nextSeed: s.turns[s.index + 1]?.title || '结束' }));
     if (!raw || !visible.current || account !== owner()) return;
     try { const reply = parseFeedback(raw, answer); setSession(current => applyFeedback(current, reply), s.id); ai.clear(); }
     catch (e) { ai.clear(); setError(e instanceof Error ? e.message : '点评失败，请重试'); }
@@ -91,8 +94,9 @@ export function Interview({ active, onProfile, onIntro, onPrepare }: { active: b
   };
   const status = <>{ai.busy ? <Card><View style={styles.row}><ActivityIndicator color={c.primary} /><Text style={[styles.body, { color: c.text, flex: 1 }]}>正在结合本轮回答整理建议…</Text></View><Action label="停止生成，保留回答" subtle onPress={ai.cancel} /></Card> : null}{error || ai.error ? <Card><Text accessibilityLiveRegion="polite" style={[styles.body, { color: c.orange }]}>{error || ai.error}</Text>{ai.error ? <Action label="设置 AI" subtle onPress={() => app.ai.openSettings()} /> : null}</Card> : null}</>;
   const editor = (onSubmit: () => void, label: string) => <View style={{ gap: 12 }}><TextInput accessibilityLabel={revising ? '重答内容' : '本题回答'} value={answer} onChangeText={saveAnswer} editable={!recording && !finishing && !ai.busy} multiline maxLength={4000} placeholder="先说自己的真实做法。可以打字，也可以语音录入后修改。" placeholderTextColor={c.muted} style={[styles.field, { minHeight: 160, backgroundColor: c.field, borderColor: c.line, color: c.text }]} /><Text style={[styles.small, { color: c.muted }]}>本机自动保存 · 语音结果可编辑 · 不保存录音</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Action label={finishing ? '正在整理语音' : recording ? '结束录入' : '语音录入'} busy={finishing} subtle disabled={ai.busy} icon={recording ? <Square size={18} color={c.text} /> : <Mic size={18} color={c.text} />} onPress={recording ? finishRecording : record} style={{ flexGrow: 1 }} /><Action label={label} busy={ai.busy} disabled={!answer.trim() || recording || finishing} onPress={onSubmit} style={{ flexGrow: 1 }} /></View></View>;
-  if (!s) return <ScrollView contentContainerStyle={styles.content}><View style={{ backgroundColor: c.hero, padding: 24, borderRadius: 24, gap: 16 }}><Text style={[styles.title, { color: c.heroText }]}>练一轮，找出真正卡住你的地方。</Text><Text style={[styles.body, { color: c.heroText }]}>5 道主问题，经历题最多追问 1 次。每题给具体建议，最后挑出最值得补的三个问题。</Text><Action label="开始一轮陪练 · 约 15 分钟" onPress={start} /></View><Card><Text style={[styles.heading, { color: c.text }]}>{roleName(state.profile)}</Text><Text style={[styles.body, { color: c.muted }]}>不需要完整简历。写一段你做过的事、粘贴 JD，建议会更贴合这次面试。没有资料也能先练。</Text><Action label="补充岗位和经历" subtle onPress={onProfile} /><Action label="先准备自我介绍" subtle onPress={onIntro} /></Card><AiPrivacy /><Text style={[styles.small, { color: c.muted }]}>陪练模式：逐题点评，不预测录用结果。离开后可继续，已有回答不会丢失。</Text></ScrollView>;
-  return <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+  const scenarioPicker = <View style={{ gap: 3 }}><Text style={[styles.small, { color: c.muted }]}>新一轮类型{s ? ' · 当前：' + s.mode : ''}</Text><View style={styles.chips}>{interviewModes.map(m => <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: mode === m }} onPress={() => setMode(m)} style={({ pressed }) => [styles.chip, { borderColor: c.line, backgroundColor: mode === m ? c.primary : c.field, opacity: pressed ? .6 : 1 }]}><Text style={{ color: mode === m ? c.onPrimary : c.text, fontSize: 13 }}>{m}</Text></Pressable>)}</View></View>;
+  if (!s) return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{scenarioPicker}<View style={{ backgroundColor: c.hero, padding: 12, borderRadius: 10, gap: 8 }}><Text style={[styles.title, { color: c.heroText }]}>练一轮，找出真正卡住你的地方。</Text><Text style={[styles.body, { color: c.heroText }]}>5 道主问题，经历题最多追问 1 次。每题给具体建议，最后挑出最值得补的三个问题。</Text><Action label="开始一轮陪练 · 约 15 分钟" onPress={start} /></View><Card><Text style={[styles.heading, { color: c.text }]}>{roleName(state.profile)}</Text><Text style={[styles.body, { color: c.muted }]}>沿用简历页的正文与JD，也可只填一段真实经历。没有资料时先练通用问题。</Text><Action label="补充岗位和经历" subtle onPress={onProfile} /><Action label="先准备自我介绍" subtle onPress={onIntro} /></Card><AiPrivacy /><Text style={[styles.small, { color: c.muted }]}>陪练模式：逐题点评，不预测录用结果。离开后可继续，已有回答不会丢失。</Text></ScrollView>;
+  return <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>{scenarioPicker}
     <AiPrivacy />
     <View style={styles.spread}><View style={{ flex: 1, gap: 4 }}><Text style={[styles.heading, { color: c.text }]}>{s.report ? '这一轮，下一步很清楚' : s.finished ? '回答已保存，生成复盘' : '一轮面试陪练'}</Text><Text style={[styles.small, { color: c.muted }]}>{roleName(s.profile)}{s.profile.company ? ` · ${s.profile.company}` : ''} · {s.profile.round}</Text></View>{s.report ? <Action label="再练一轮" subtle onPress={start} /> : null}</View>
     {!s.finished && turn ? <><View style={{ backgroundColor: c.hero, borderRadius: 24, padding: 22, gap: 12 }}><Text style={[styles.small, { color: c.heroText }]}>{turn.kind === 'followup' ? '经历追问' : '主问题'} · {s.index + 1}/{s.turns.length}</Text><Text style={[styles.title, { color: c.heroText }]}>{turn.title}</Text><Text style={[styles.small, { color: c.heroText }]}>{elapsed >= 180 ? '已练 3 分钟，可以先提交，也可以继续补充。' : `本题 ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')} · 建议 1–3 分钟`}</Text></View>

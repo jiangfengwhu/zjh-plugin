@@ -15,10 +15,13 @@ import { useAi, AiResult, AiPrivacy } from './coach';
 import { Interview } from './interview';
 import { QuickCard } from './quick-card';
 import { Library, RecommendedMaterials } from './library';
-import { clearLearning, refreshMaterials } from './materials';
+import { clearLearning, refreshMaterials, type Material } from './materials';
+import { Resume } from './resume';
+import { Jobs } from './jobs';
+import { blankJob, clearWorkspace, getWorkspace, type Job } from './workspace';
 
 const AnimatedPager = Animated.createAnimatedComponent(PagerView);
-const tabs = ['面试准备', '开口练习', '资料库'];
+const tabs = ['简历', '面试', '求职', '资料'];
 const backdrop = (p: React.ComponentProps<typeof BottomSheetBackdrop>) => <BottomSheetBackdrop {...p} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />;
 const snapPoints = ['85%'];
 const taskKey = (item: typeof checklist[number]) => item.id;
@@ -44,7 +47,7 @@ function ProfileEditor({ profile, onSave, c }: { profile: Profile; onSave: (p: P
     <Text style={[styles.small, { color: c.muted }]}>只填你愿意用于练习的内容。AI 处理时会发送相关资料，请先去掉联系方式、客户姓名和保密信息。修改资料后请重新核对旧版自我介绍；进行中的陪练保留开始时的背景。</Text>
     <Action label="保存，开始准备" icon={<Check size={18} color={c.onPrimary} />} onPress={() => { Keyboard.dismiss(); onSave(draft); }} />
     <Action label={state.aiAllowed ? '停止允许 AI 处理资料' : '我已了解数据说明，允许使用 AI'} subtle onPress={() => updateState(s => ({ ...s, aiAllowed: !s.aiAllowed }), account)} />
-    <Action label="清空本机准备记录" subtle onPress={() => Alert.alert('清空准备记录？', '将删除本账号的经历、回答、介绍、清单、复盘、收藏、学习状态和笔记。已自行导出的文件不会被删除。', [{ text: '取消', style: 'cancel' }, { text: '清空', style: 'destructive', onPress: () => { clearLearning(account); updateState(s => ({ ...s, profile: { ...s.profile, name: '', company: '', experience: '', background: '', jd: '', concern: '' }, answers: {}, intro: '', checked: [], saved: [], plan: null, session: null, history: [], aiAllowed: false }), account); onSave({ ...draft, name: '', company: '', experience: '', background: '', jd: '', concern: '' }); } }])} />
+    <Action label="清空本机准备记录" subtle onPress={() => Alert.alert('清空准备记录？', '将删除本账号的经历、回答、介绍、清单、复盘、收藏、学习状态、笔记、简历版本与求职进度，并取消对应提醒。已自行导出的文件不会被删除。', [{ text: '取消', style: 'cancel' }, { text: '清空', style: 'destructive', onPress: () => { clearLearning(account); clearWorkspace(account); updateState(s => ({ ...s, profile: { ...s.profile, name: '', company: '', experience: '', background: '', jd: '', concern: '' }, answers: {}, intro: '', checked: [], saved: [], plan: null, session: null, history: [], aiAllowed: false }), account); onSave({ ...draft, name: '', company: '', experience: '', background: '', jd: '', concern: '' }); } }])} />
   </BottomSheetScrollView>;
 }
 const Prepare = memo(function Prepare({ profile, checked, active, onProfile, onPractice, onInterview, onQuick, onIntro, onResource }: { profile: Profile; checked: string[]; active: boolean; onProfile: () => void; onPractice: (id?: string) => void; onInterview: () => void; onQuick: () => void; onIntro: () => void; onResource: (id: string) => void }) {
@@ -128,32 +131,46 @@ export default function CareerRescue() {
   useEffect(() => { const listener = AppState.addEventListener('change', value => setForeground(value === 'active')); return () => listener.remove(); }, []);
   const visible = focused && foreground;
   const profile = useMemo(() => state.profile, [JSON.stringify(state.profile)]), checked = useMemo(() => state.checked, [JSON.stringify(state.checked)]), saved = useMemo(() => state.saved, [JSON.stringify(state.saved)]);
-  const [practiceMode, setPracticeMode] = useState<'interview' | 'single'>('interview');
+  const [practiceMode, setPracticeMode] = useState<'prepare' | 'interview' | 'single'>('interview');
   const [tab, setTab] = useState(0), [width, setWidth] = useState(0), [sheet, setSheet] = useState<'profile' | 'intro' | 'quick' | 'history' | null>(null), [practice, setPractice] = useState<{ id?: string; question?: Question; at: number }>({ at: 0 });
-  const [libraryRequest, setLibraryRequest] = useState<{ id?: string; at: number }>({ at: 0 });
+  const [libraryRequest, setLibraryRequest] = useState<{ id?: string; topic?: string; at: number }>({ at: 0 });
+  const [jobRequest, setJobRequest] = useState<{ job?: Job; id?: string; at: number }>({ at: 0 });
   const pager = useRef<PagerView>(null), modal = useRef<BottomSheetModal>(null), position = useRef(new Animated.Value(0)).current, offset = useRef(new Animated.Value(0)).current;
   const visit = useCallback((next: number) => { Keyboard.dismiss(); setTab(next); pager.current?.setPage(next); }, []);
   const openProfile = useCallback(() => { setSheet('profile'); modal.current?.present(); }, []);
   const openIntro = useCallback(() => { setSheet('intro'); modal.current?.present(); }, []);
-  const openResource = useCallback((id: string) => { if (id === 'history') { setSheet('history'); modal.current?.present(); return; } setLibraryRequest({ id, at: Date.now() }); visit(2); }, [visit]);
+  const openResource = useCallback((id: string) => { if (id === 'history') { setSheet('history'); modal.current?.present(); return; } setLibraryRequest({ id, at: Date.now() }); visit(3); }, [visit]);
   const openQuick = useCallback(() => { setSheet('quick'); modal.current?.present(); }, []);
   const openInterview = useCallback(() => { setPracticeMode('interview'); visit(1); }, [visit]);
   const openPractice = useCallback((id?: string) => { setPracticeMode('single'); setPractice({ id, at: Date.now() }); visit(1); }, [visit]);
   const practiceMaterial = useCallback((question: Question) => { setPracticeMode('single'); setPractice({ id: question.id, question, at: Date.now() }); visit(1); }, [visit]);
+  const openTopic = useCallback((topic: string) => { setLibraryRequest({ topic, at: Date.now() }); visit(3); }, [visit]);
+  const trackJob = useCallback((job: Job) => { setJobRequest({ job, at: Date.now() }); visit(2); }, [visit]);
+  const trackMaterial = useCallback((item: Material) => { const job = blankJob(item.company || '', item.title); job.url = item.applicationUrl || item.sources[0]?.url || ''; job.nextAt = item.deadlineAt ? Date.parse(item.deadlineAt) : null; job.nextStep = item.deadlineAt ? '投递截止' : ''; trackJob(job); }, [trackJob]);
+  const openPrepare = useCallback(() => { setPracticeMode('prepare'); visit(1); }, [visit]);
   useEffect(() => { if (visible) void refreshMaterials(); }, [visible]);
+  useEffect(() => app.phone.onNotification(event => {
+    if (event.params.account !== account || owner() !== account) return;
+    if (event.action === 'open' && typeof event.params.job === 'string' && getWorkspace().jobs.some(j => j.id === event.params.job)) { setJobRequest({ id: event.params.job, at: Date.now() }); visit(2); }
+    void app.phone.acknowledgeNotification(event.token);
+  }), [account, visit]);
   useEffect(() => { if (previousAccount.current !== account) { previousAccount.current = account; modal.current?.dismiss(); setSheet(null); } }, [account]);
   useEffect(() => {
     const receive = (params?: ShareParams) => { if (typeof params?.material === 'string' || typeof params?.resource === 'string') { openResource(String(params.material || params.resource)); } else if (typeof params?.question === 'string') { if (params.question.startsWith('material-')) { openResource(params.question.slice(9)); return; } const q = questions.find(q => q.id === params.question); if (q) { if (q.role !== '通用') updateState(s => ({ ...s, profile: { ...s.profile, role: q.role } })); openPractice(q.id); } } };
     const off = app.sharing.subscribe(receive); receive(app.sharing.getParams()); return off;
   }, [visit, openResource, openPractice]);
-  const indicator = Animated.add(position, offset).interpolate({ inputRange: [0, 2], outputRange: [0, width * 2 / 3] });
+  const indicator = Animated.add(position, offset).interpolate({ inputRange: [0, 3], outputRange: [0, width * 3 / 4] });
   return <BottomSheetModalProvider><SafeAreaView edges={['top', 'bottom']} style={[styles.root, { backgroundColor: c.bg }]}>
-    <View style={[styles.spread, { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }]}><View style={[styles.row, { flex: 1 }]}><View style={{ width: 39, height: 39, backgroundColor: c.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}><BriefcaseBusiness size={22} color={c.onPrimary} /></View><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: '800', fontSize: 18 }}>求职急救站</Text><Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>生花官方 · 考点 / 面试 / 复盘</Text></View></View><IconAction label="分享求职急救站" onPress={() => share()}><Share2 size={21} color={c.text} /></IconAction></View>
-    <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={{ marginHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.line }}><View style={{ flexDirection: 'row' }}>{tabs.map((title, i) => <Pressable key={title} accessibilityRole="tab" accessibilityState={{ selected: tab === i }} onPress={() => visit(i)} style={({ pressed }) => ({ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? .6 : 1 })}><Text style={{ color: tab === i ? c.primary : c.muted, fontSize: 15, fontWeight: tab === i ? '800' : '500' }}>{title}</Text></Pressable>)}</View><Animated.View style={{ width: width / 3, height: 3, borderRadius: 2, backgroundColor: c.primary, transform: [{ translateX: indicator }] }} /></View>
+    <View style={[styles.spread, { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 4 }]}><View style={[styles.row, { flex: 1 }]}><View style={{ width: 39, height: 39, backgroundColor: c.primary, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}><BriefcaseBusiness size={22} color={c.onPrimary} /></View><View style={{ flex: 1 }}><Text style={{ color: c.text, fontWeight: '800', fontSize: 18 }}>求职急救站</Text><Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>生花官方 · 对齐岗位，准备答案，跟进机会</Text></View></View><IconAction label="分享求职急救站" onPress={() => share()}><Share2 size={21} color={c.text} /></IconAction></View>
+    <View onLayout={e => setWidth(e.nativeEvent.layout.width)} style={{ marginHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.line }}><View style={{ flexDirection: 'row' }}>{tabs.map((title, i) => <Pressable key={title} accessibilityRole="tab" accessibilityState={{ selected: tab === i }} onPress={() => visit(i)} style={({ pressed }) => ({ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? .6 : 1 })}><Text style={{ color: tab === i ? c.primary : c.muted, fontSize: 15, fontWeight: tab === i ? '800' : '500' }}>{title}</Text></Pressable>)}</View><Animated.View style={{ width: width / 4, height: 3, borderRadius: 2, backgroundColor: c.primary, transform: [{ translateX: indicator }] }} /></View>
     <AnimatedPager ref={pager} initialPage={0} style={{ flex: 1 }} offscreenPageLimit={2} onPageSelected={e => setTab(e.nativeEvent.position)} onPageScroll={Animated.event([{ nativeEvent: { position, offset } }], { useNativeDriver: false })}>
-      <View key="prepare" collapsable={false}><Prepare profile={profile} checked={checked} active={tab === 0 && visible} onProfile={openProfile} onPractice={openPractice} onInterview={openInterview} onQuick={openQuick} onIntro={openIntro} onResource={openResource} /></View>
-      <View key="practice" collapsable={false} style={{ flex: 1 }}><View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12 }}><Action label="整轮陪练" subtle={practiceMode !== 'interview'} onPress={() => setPracticeMode('interview')} style={{ flex: 1 }} /><Action label="单题练习" subtle={practiceMode !== 'single'} onPress={() => setPracticeMode('single')} style={{ flex: 1 }} /></View><View style={{ flex: 1, display: practiceMode === 'interview' ? 'flex' : 'none' }}><Interview key={account} active={tab === 1 && visible && practiceMode === 'interview'} onProfile={openProfile} onIntro={openIntro} onPrepare={() => visit(0)} /></View><View style={{ flex: 1, display: practiceMode === 'single' ? 'flex' : 'none' }}><Practice key={account} profile={profile} active={tab === 1 && visible && practiceMode === 'single'} requested={practice} /></View></View>
-      <View key="resources" collapsable={false} style={{ flex: 1 }}><Library profile={profile} active={tab === 2 && visible} saved={saved} onPractice={practiceMaterial} requested={libraryRequest} /></View>
+      <View key="resume" collapsable={false} style={{ flex: 1 }}><Resume key={account} active={tab === 0 && visible} onProfile={openProfile} onTrack={trackJob} onPractice={practiceMaterial} onTopic={openTopic} /></View>
+      <View key="practice" collapsable={false} style={{ flex: 1 }}><View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingTop: 8 }}><Action label="准备重点" subtle={practiceMode !== 'prepare'} onPress={() => setPracticeMode('prepare')} style={{ flex: 1 }} /><Action label="整轮陪练" subtle={practiceMode !== 'interview'} onPress={() => setPracticeMode('interview')} style={{ flex: 1 }} /><Action label="单题" subtle={practiceMode !== 'single'} onPress={() => setPracticeMode('single')} style={{ flex: 1 }} /></View>
+        <View style={{ flex: 1, display: practiceMode === 'prepare' ? 'flex' : 'none' }}><Prepare profile={profile} checked={checked} active={tab === 1 && visible && practiceMode === 'prepare'} onProfile={openProfile} onPractice={openPractice} onInterview={openInterview} onQuick={openQuick} onIntro={openIntro} onResource={openResource} /></View>
+        <View style={{ flex: 1, display: practiceMode === 'interview' ? 'flex' : 'none' }}><Interview key={account} active={tab === 1 && visible && practiceMode === 'interview'} onProfile={openProfile} onIntro={openIntro} onPrepare={openPrepare} /></View><View style={{ flex: 1, display: practiceMode === 'single' ? 'flex' : 'none' }}><Practice key={account} profile={profile} active={tab === 1 && visible && practiceMode === 'single'} requested={practice} /></View>
+      </View>
+      <View key="jobs" collapsable={false} style={{ flex: 1 }}><Jobs key={account} active={tab === 2 && visible} request={jobRequest} onInterview={openPrepare} onTopic={openTopic} /></View>
+      <View key="resources" collapsable={false} style={{ flex: 1 }}><Library profile={profile} active={tab === 3 && visible} saved={saved} onPractice={practiceMaterial} onTrack={trackMaterial} requested={libraryRequest} /></View>
     </AnimatedPager>
     <BottomSheetModal ref={modal} snapPoints={snapPoints} enableDynamicSizing={false} enablePanDownToClose backdropComponent={backdrop} keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" backgroundStyle={{ backgroundColor: c.surface }} handleIndicatorStyle={{ backgroundColor: c.muted }} onDismiss={() => { setSheet(null); Keyboard.dismiss(); }}>
       {sheet === 'quick' ? <QuickCard key={account} /> : sheet === 'history' ? <BottomSheetScrollView contentContainerStyle={styles.content}><Section title="我的面试复盘" c={c} />{state.history.map(h => <Card key={h.id}><Text style={[styles.heading, { color: c.text }]}>{roleName(h.profile)} · {new Date(h.createdAt).toLocaleDateString()}</Text><Text style={[styles.body, { color: c.muted }]}>{h.report?.priorities[0]?.issue}</Text><Action label="打开这份复盘" subtle onPress={() => { const open = () => { updateState(s => ({ ...s, session: h }), account); modal.current?.dismiss(); openInterview(); }; if (state.session && !state.session.report && state.session.id !== h.id) Alert.alert('打开这份复盘？', '当前未完成的陪练将被替换。', [{ text: '取消', style: 'cancel' }, { text: '打开复盘', onPress: open }]); else open(); }} /></Card>)}</BottomSheetScrollView> : sheet === 'profile' ? <ProfileEditor key={account} profile={profile} c={c} onSave={profile => { updateState(s => ({ ...s, profile }), account); modal.current?.dismiss(); app.toast.show('准备方向已更新', 'success'); }} /> : sheet === 'intro' ? <IntroEditor key={account} profile={profile} active={visible} /> : <View style={{ minHeight: 1 }} />}

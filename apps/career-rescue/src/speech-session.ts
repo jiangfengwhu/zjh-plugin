@@ -3,7 +3,7 @@ import type { ApplicationNativeCapabilities } from '@zijinhua/app-sdk';
 export type SpeechSession = { stop: () => void; cancel: () => void; done: Promise<void> };
 
 // System recognition ends a phrase on silence. Continue until the user explicitly stops.
-export function startSpeechSession(api: ApplicationNativeCapabilities['speech'], initial: string, onText: (text: string) => void): SpeechSession {
+export function startSpeechSession(api: ApplicationNativeCapabilities['speech'], initial: string, onText: (text: string) => void, language = 'zh-CN'): SpeechSession {
   const controller = new AbortController();
   let running = true, recognizing = false, settled = false, text = '', wake: (() => void) | undefined;
   let finishTimer: ReturnType<typeof setTimeout> | undefined;
@@ -23,7 +23,7 @@ export function startSpeechSession(api: ApplicationNativeCapabilities['speech'],
       while (running && !controller.signal.aborted) {
         let partial = '';
         recognizing = true;
-        const result = await api.recognize({ language: 'zh-CN', signal: controller.signal,
+        const result = await api.recognize({ language, signal: controller.signal,
           onState: state => { if (state === 'listening' && !running && !controller.signal.aborted) finish(); },
           onPartial: value => { if (!controller.signal.aborted) { partial = value.trim(); publish(partial); } },
         });
