@@ -10,7 +10,7 @@ export function disposeContent() { currentRequest?.abort(); listeners.clear(); }
 const listeners = new Set<() => void>();
 let snapshot = { catalog, busy, error };
 function publish() { snapshot = { catalog, busy, error }; listeners.forEach(fn => fn()); }
-function valid(value: unknown): value is Catalog { const v = value as Catalog; return !!v && Number.isSafeInteger(v.revision) && v.revision >= 0 && typeof v.updatedAt === 'string' && Array.isArray(v.items) && v.items.length <= 500 && v.items.every(i => i && typeof i.id === 'string' && ['resume', 'question', 'followup', 'risk', 'timeline'].includes(i.kind) && typeof i.title === 'string' && typeof i.body === 'string' && Array.isArray(i.roles) && Array.isArray(i.tags)); }
+function valid(value: unknown): value is Catalog { const v = value as Catalog; return !!v && Number.isSafeInteger(v.revision) && v.revision >= 0 && typeof v.updatedAt === 'string' && Array.isArray(v.items) && v.items.every(i => i && typeof i.id === 'string' && ['resume', 'question', 'followup', 'risk', 'timeline'].includes(i.kind) && typeof i.title === 'string' && typeof i.body === 'string' && Array.isArray(i.roles) && Array.isArray(i.tags)); }
 try { const value = JSON.parse(storage.get('career-content') ?? 'null'); if (valid(value)) catalog = value; } catch {}
 snapshot = { catalog, busy, error };
 const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
