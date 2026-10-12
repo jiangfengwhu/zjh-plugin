@@ -1,0 +1,11 @@
+export type Target = { company: string; role: string };
+export type ContentKind = 'resume' | 'question' | 'followup' | 'risk' | 'timeline';
+export type ContentItem = { id: string; kind: ContentKind; title: string; body: string; roles: string[]; tags: string[]; updatedAt: string; company?: string; source?: { label: string; url: string }; provenance: '官方资料' | '公开面经' | '示例'; before?: string; after?: string; question?: string; followups?: string[]; interviewDate?: string; severity?: '高' | '中' | '低'; reportCount?: number; startAt?: string; endAt?: string; eventType?: string; applicationUrl?: string };
+export type Catalog = { revision: number; updatedAt: string; items: ContentItem[] };
+export type ResumeFile = { path: string; name: string; mime: string; bytes: number; kind: 'pdf' | 'doc' | 'docx' | 'txt' | 'image' };
+export type ResumeState = { file: ResumeFile | null; text: string; jd: string; mode: 'text' | 'file'; diagnosis: string; improved: string; resultInput: { diagnosis: string; improved: string } };
+export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; at: number };
+export type Session = { id: string; target: Target; jd: string; resume: string; messages: ChatMessage[]; round: number; finished: boolean; createdAt: number };
+export const stages = ['待投递', '已投递', '笔试', '一面', '二面', '终面', 'Offer', '结束'] as const;
+export type Job = { id: string; company: string; role: string; stage: typeof stages[number]; event: string; atMs: number | null; location: string; notes: string; reminderMinutes: number; notificationId?: string; reminderState?: 'pending' | 'ready' | 'failed' | 'off'; updatedAt: number; sourceId?: string };
+export type State = { target: Target; resume: ResumeState; session: Session | null; history: Session[]; jobs: Job[]; saved: string[] };
