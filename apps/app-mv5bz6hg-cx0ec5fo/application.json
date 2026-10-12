@@ -1,0 +1,9 @@
+{
+  "appName": "长度单位转换器",
+  "description": "支持 um, mm, mil, inch 之间互相转换的工具",
+  "accent": "#7A5BD0",
+  "appId": "app-mv5bz6hg-cx0ec5fo",
+  "version": "1.0.1",
+  "releaseNotes": "首次发布，提供基本的长度单位转换功能。",
+  "moduleBase": 5300000
+}
