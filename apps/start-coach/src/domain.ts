@@ -42,5 +42,5 @@ export function parseStep(raw: string): Step {
   const reason = typeof value.why_easy === 'string' ? value.why_easy.trim() : '';
   const message = typeof value.coach_message === 'string' ? value.coach_message.trim() : '';
   if (!action || action.length > 120 || !reason || reason.length > 100 || message.length > 100 || /ADHD|疾病|疗效|执行功能障碍|必须坚持/i.test(action + reason + message)) throw new Error('没有找到合适的小动作，请再试一次');
-  return { action, reason, message, durationSec: typeof value.duration_sec === 'number' && Number.isFinite(value.duration_sec) ? Math.round(Math.max(60, Math.min(900, value.duration_sec)) / 60) * 60 : 300, source: 'ai' | 'user' };
+  return { action, reason, message, durationSec: typeof value.duration_sec === 'number' && Number.isFinite(value.duration_sec) ? Math.round(Math.max(60, Math.min(900, value.duration_sec)) / 60) * 60 : 300, source: 'ai' };
 }
