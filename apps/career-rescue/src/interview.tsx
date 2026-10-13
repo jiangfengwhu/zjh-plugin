@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { History, Plus, Send, Square } from 'lucide-react-native';
+import { History, Mic, Plus, Send, Square } from 'lucide-react-native';
 import { app, copy, owner, readState, readTarget, uid, updateState, useField, useTarget } from './model';
 import { matching, useCatalog } from './content-api';
 import { useAi } from './use-ai';
@@ -14,10 +14,55 @@ const Bubble = memo(function Bubble({ item, streaming = false }: { item: ChatMes
   const c = usePalette(), mine = item.role === 'user';
   return <View style={{ paddingHorizontal: 14, paddingVertical: 6, alignItems: mine ? 'flex-end' : 'stretch' }}><View style={{ maxWidth: '100%', padding: 12, borderRadius: 12, backgroundColor: mine ? c.wash : c.surface, borderWidth: 1, borderColor: c.line, gap: 6 }}><Text style={[s.small, { fontWeight: '700', color: mine ? c.accent : c.muted }]}>{mine ? '我的回答' : '面试官 · AI'}</Text>{mine ? <Text selectable style={[s.body, { color: c.text }]}>{item.text}</Text> : <Markdown text={item.text || '正在组织问题…'} streaming={streaming} />}{!mine && !streaming && item.text ? <Pressable accessibilityRole="button" onPress={() => copy(item.text)} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}><Text style={[s.small, { color: c.accent }]}>复制本轮内容</Text></Pressable> : null}</View></View>;
 });
-const Composer = memo(function Composer({ disabled, onSend, sessionId }: { disabled: boolean; onSend: (text: string) => boolean; sessionId: string }) {
-  const c = usePalette(), [text, setText] = useState('');
-  useEffect(() => { setText(''); }, [sessionId]);
-  return <View style={[s.row, { alignItems: 'flex-end', padding: 10, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }]}><TextInput accessibilityLabel="本轮回答" value={text} onChangeText={setText} multiline maxLength={6000} placeholder="输入你的回答，停顿和修改都由你决定" placeholderTextColor={c.muted} style={[s.field, { flex: 1, maxHeight: 132, color: c.text, backgroundColor: c.field, borderColor: c.line }]} /><Button label="发送" disabled={disabled || !text.trim()} icon={<Send size={16} color={c.onAccent} />} onPress={() => { const answer = text.trim(); if (answer && onSend(answer)) setText(''); }} /></View>;
+type VoiceRun = { controller: AbortController; ending: boolean };
+const Composer = memo(function Composer({ active, disabled, onSend, sessionId }: { active: boolean; disabled: boolean; onSend: (text: string) => boolean; sessionId: string }) {
+  const c = usePalette(), [text, setText] = useState(''), [voice, setVoice] = useState<'idle' | 'starting' | 'listening' | 'processing'>('idle'), [voiceError, setVoiceError] = useState('');
+  const current = useRef<VoiceRun | null>(null);
+  useEffect(() => { setText(''); setVoiceError(''); }, [sessionId]);
+  useEffect(() => {
+    setVoice('idle');
+    return () => { const run = current.current; current.current = null; run?.controller.abort(); };
+  }, [active, disabled, sessionId]);
+  const startVoice = async () => {
+    if (current.current || !active || disabled || text.length >= 6000) return;
+    const run: VoiceRun = { controller: new AbortController(), ending: false };
+    current.current = run; setVoice('starting'); setVoiceError(''); Keyboard.dismiss();
+    const prefix = text ? `${text}${/\s$/.test(text) ? '' : '\n'}` : '';
+    const append = (spoken: string) => { if (current.current === run && spoken.trim()) setText((prefix + spoken).slice(0, 6000)); };
+    try {
+      const permission = await app.phone.speech.requestPermission();
+      if (current.current !== run) return;
+      if (!permission.granted) { setVoiceError(permission.status === 'blocked' ? '麦克风权限已关闭，请在系统设置中允许生花使用麦克风。' : '未获得麦克风权限，可继续输入文字回答。'); return; }
+      const result = await app.phone.speech.recognize({ language: 'zh-CN', signal: run.controller.signal, onPartial: append, onState: state => {
+        if (current.current !== run || run.ending) return;
+        if (state === 'listening' || state === 'hearing') setVoice('listening');
+        else if (state === 'processing') setVoice('processing');
+      } });
+      if (current.current !== run) return;
+      if (result.ok) append(result.text);
+      else if (result.code !== 'CANCELLED') setVoiceError(result.error);
+    } catch (error) {
+      if (current.current === run) setVoiceError(error instanceof Error ? error.message : '语音录入失败，已保留输入内容。');
+    } finally {
+      if (current.current === run) { current.current = null; setVoice('idle'); }
+    }
+  };
+  const finishVoice = async () => {
+    const run = current.current; if (!run || run.ending || voice !== 'listening') return;
+    run.ending = true; setVoice('processing');
+    try {
+      const result = await app.phone.speech.finish();
+      if (current.current === run && !result.ok) { setVoiceError(result.error); current.current = null; run.controller.abort(); setVoice('idle'); }
+    } catch (error) {
+      if (current.current === run) { setVoiceError(error instanceof Error ? error.message : '结束语音录入失败，已保留输入内容。'); current.current = null; run.controller.abort(); setVoice('idle'); }
+    }
+  };
+  const recording = voice !== 'idle';
+  return <View style={{ padding: 10, gap: 6, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
+    <Text accessibilityLiveRegion="polite" style={[s.small, { color: recording ? c.accent : c.muted }]}>{voice === 'starting' ? '正在准备麦克风…' : voice === 'listening' ? '正在听 · 点击停止按钮结束录入' : voice === 'processing' ? '正在确认识别文字…' : '点击麦克风开始，再点击结束；确认文字后发送'}</Text>
+    <View style={[s.row, { alignItems: 'center' }]}><TextInput accessibilityLabel="本轮回答" value={text} onChangeText={setText} editable={!recording} multiline maxLength={6000} placeholder="输入或语音录入你的回答" placeholderTextColor={c.muted} style={[s.field, { flex: 1, minHeight: 44, maxHeight: 132, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10, includeFontPadding: false, color: c.text, backgroundColor: c.field, borderColor: c.line }]} /><IconButton label={voice === 'listening' ? '结束语音录入' : '开始语音录入'} selected={recording} busy={voice === 'starting' || voice === 'processing'} disabled={!active || disabled || !recording && text.length >= 6000} onPress={() => { if (current.current) void finishVoice(); else void startVoice(); }}>{voice === 'listening' ? <Square size={18} color={c.accent} /> : <Mic size={18} color={c.accent} />}</IconButton><Button label="发送" disabled={disabled || recording || !text.trim()} icon={<Send size={16} color={c.onAccent} />} onPress={() => { const answer = text.trim(); if (answer && onSend(answer)) setText(''); }} /></View>
+    <ErrorText text={voiceError} />
+  </View>;
 });
 const compact = (items: ContentItem[]) => items.map(i => ({ question: i.question, title: i.title, company: i.company, provenance: i.provenance, guide: i.body.slice(0, 1800), followups: i.followups }));
 export const Interview = memo(function Interview({ active, onTarget, requested }: { active: boolean; onTarget: () => void; requested: ContentItem | null }) {
@@ -61,7 +106,7 @@ export const Interview = memo(function Interview({ active, onTarget, requested }
   const awaiting = !!session && (!session.messages.length || session.messages.at(-1)?.role === 'user');
   return <View style={{ flex: 1 }}><View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, gap: 8 }}><View style={s.spread}><View style={{ flex: 1 }}><Text numberOfLines={1} style={[s.heading, { color: c.text }]}>{session ? [session.target.company, session.target.role].filter(Boolean).join(' · ') : '和面试官练一轮真实表达'}</Text><Text style={[s.small, { color: c.muted }]}>{session ? `已回答 ${session.round} / 6 轮${session.finished ? ' · 已结束' : ''}` : '每次只问一个问题，回答后给反馈与示范'}</Text></View><View style={s.row}><IconButton label={session ? "开始新一轮模拟面试" : "开始模拟面试"} selected busy={starting} disabled={ai.busy && !starting} onPress={newRound}><Plus size={19} color={c.accent} /></IconButton><IconButton label="模拟面试记录" onPress={() => setHistoryOpen(true)}><History size={18} color={c.accent} /></IconButton></View></View><View style={s.row}>{session && !session.finished && session.messages.length ? <Button label="结束并复盘" subtle disabled={ai.busy} onPress={finish} /> : null}{ai.busy ? <IconButton label="停止生成" onPress={ai.cancel}><Square size={18} color={c.accent} /></IconButton> : null}</View>{session && (session.target.role !== target.role || session.target.company !== target.company || session.jd !== target.jd) ? <Text style={[s.small, { color: c.muted }]}>目标已变更；当前会话保留原目标，新一轮会使用新目标。</Text> : null}<ErrorText text={error || ai.error} />{ai.error || awaiting && !ai.busy && session ? <View style={s.row}><Button label="重试本轮" subtle onPress={retry} /><Button label="配置 AI" subtle onPress={() => app.ai.openSettings()} /></View> : null}</View>
     {session ? <FlashList key={session.id} data={rows} keyExtractor={key} getItemType={bubbleType} renderItem={renderBubble} maintainVisibleContentPosition={position} contentContainerStyle={{ paddingBottom: 10 }} ListFooterComponent={session.finished ? <View style={{ padding: 14 }}><Card><Text style={[s.heading, { color: c.text }]}>本轮已保存</Text><Text style={[s.body, { color: c.muted }]}>示范答案用于学习组织方式。把待补事实改成自己的经历，再练一次。</Text></Card></View> : null} /> : <View style={{ flex: 1, justifyContent: 'center', padding: 14 }}><Empty title="把回答练到能讲清楚" detail="点击右上角＋开始。问题、追问和点评参考岗位真题与追问规则，回答后点击发送。" /><Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>目标：{target.role || '尚未设置'}{target.company ? ` · ${target.company}` : ''}</Text></View>}
-    <Text style={[s.small, { color: c.muted, paddingHorizontal: 14, paddingVertical: 4 }]}>回答发送至你的 AI；参考评分与满分范例不是招聘承诺。</Text>{session && !session.finished ? <Composer sessionId={session.id} disabled={ai.busy || awaiting} onSend={send} /> : null}
+    <Text style={[s.small, { color: c.muted, paddingHorizontal: 14, paddingVertical: 4 }]}>回答发送至你的 AI；参考评分与满分范例不是招聘承诺。</Text>{session && !session.finished ? <Composer active={active && !historyOpen} sessionId={session.id} disabled={ai.busy || awaiting} onSend={send} /> : null}
     <Sheet title="模拟面试记录" visible={historyOpen} onClose={() => setHistoryOpen(false)}>{history.length ? history.map(value => <Card key={value.id}><Text style={[s.heading, { color: c.text }]}>{value.target.company} · {value.target.role}</Text><Text style={[s.small, { color: c.muted }]}>{new Date(value.createdAt).toLocaleDateString()} · {value.round}轮 · {value.finished ? '已复盘' : '未结束'}</Text><Button label="查看 / 继续" subtle onPress={() => { ai.clear(); const current = readState().session; if (current && current.id !== value.id && current.messages.length) updateState(state => ({ ...state, history: [current, ...state.history.filter(s => s.id !== current.id)].slice(0, 10) }), account); complete(value); setHistoryOpen(false); }} /></Card>) : <Empty title="还没有历史会话" detail="开始新一轮或完成复盘后，这里保留最近10次记录。" />}</Sheet>
   </View>;
 });
