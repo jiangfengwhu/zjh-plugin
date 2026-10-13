@@ -5,6 +5,7 @@ import { History, Mic, Plus, Send, Square } from 'lucide-react-native';
 import { app, copy, owner, readState, readTarget, uid, updateState, useField, useTarget } from './model';
 import { matching, useCatalog } from './content-api';
 import { useAi } from './use-ai';
+import { startSpeechSession, type SpeechSession } from './speech-session';
 import { Button, Card, Empty, ErrorText, IconButton, Markdown, Sheet, s, usePalette } from './ui';
 import type { ChatMessage, ContentItem, Session } from './types';
 const key = (item: ChatMessage) => item.id;
@@ -14,48 +15,31 @@ const Bubble = memo(function Bubble({ item, streaming = false }: { item: ChatMes
   const c = usePalette(), mine = item.role === 'user';
   return <View style={{ paddingHorizontal: 14, paddingVertical: 6, alignItems: mine ? 'flex-end' : 'stretch' }}><View style={{ maxWidth: '100%', padding: 12, borderRadius: 12, backgroundColor: mine ? c.wash : c.surface, borderWidth: 1, borderColor: c.line, gap: 6 }}><Text style={[s.small, { fontWeight: '700', color: mine ? c.accent : c.muted }]}>{mine ? '我的回答' : '面试官 · AI'}</Text>{mine ? <Text selectable style={[s.body, { color: c.text }]}>{item.text}</Text> : <Markdown text={item.text || '正在组织问题…'} streaming={streaming} />}{!mine && !streaming && item.text ? <Pressable accessibilityRole="button" onPress={() => copy(item.text)} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}><Text style={[s.small, { color: c.accent }]}>复制本轮内容</Text></Pressable> : null}</View></View>;
 });
-type VoiceRun = { controller: AbortController; ending: boolean };
+type VoiceRun = SpeechSession & { ending: boolean };
 const Composer = memo(function Composer({ active, disabled, onSend, sessionId }: { active: boolean; disabled: boolean; onSend: (text: string) => boolean; sessionId: string }) {
   const c = usePalette(), [text, setText] = useState(''), [voice, setVoice] = useState<'idle' | 'starting' | 'listening' | 'processing'>('idle'), [voiceError, setVoiceError] = useState('');
   const current = useRef<VoiceRun | null>(null);
   useEffect(() => { setText(''); setVoiceError(''); }, [sessionId]);
   useEffect(() => {
     setVoice('idle');
-    return () => { const run = current.current; current.current = null; run?.controller.abort(); };
+    return () => { const run = current.current; current.current = null; run?.cancel(); };
   }, [active, disabled, sessionId]);
-  const startVoice = async () => {
+  const startVoice = () => {
     if (current.current || !active || disabled || text.length >= 6000) return;
-    const run: VoiceRun = { controller: new AbortController(), ending: false };
-    current.current = run; setVoice('starting'); setVoiceError(''); Keyboard.dismiss();
-    const prefix = text ? `${text}${/\s$/.test(text) ? '' : '\n'}` : '';
-    const append = (spoken: string) => { if (current.current === run && spoken.trim()) setText((prefix + spoken).slice(0, 6000)); };
-    try {
-      const permission = await app.phone.speech.requestPermission();
-      if (current.current !== run) return;
-      if (!permission.granted) { setVoiceError(permission.status === 'blocked' ? '麦克风权限已关闭，请在系统设置中允许生花使用麦克风。' : '未获得麦克风权限，可继续输入文字回答。'); return; }
-      const result = await app.phone.speech.recognize({ language: 'zh-CN', signal: run.controller.signal, onPartial: append, onState: state => {
-        if (current.current !== run || run.ending) return;
-        if (state === 'listening' || state === 'hearing') setVoice('listening');
-        else if (state === 'processing') setVoice('processing');
-      } });
-      if (current.current !== run) return;
-      if (result.ok) append(result.text);
-      else if (result.code !== 'CANCELLED') setVoiceError(result.error);
-    } catch (error) {
+    setVoice('starting'); setVoiceError(''); Keyboard.dismiss();
+    const run: VoiceRun = { ...startSpeechSession(app.phone.speech, text, value => {
+      if (current.current === run) setText(value);
+    }, () => { if (current.current === run && !run.ending) setVoice('listening'); }), ending: false };
+    current.current = run;
+    void run.done.catch(error => {
       if (current.current === run) setVoiceError(error instanceof Error ? error.message : '语音录入失败，已保留输入内容。');
-    } finally {
+    }).finally(() => {
       if (current.current === run) { current.current = null; setVoice('idle'); }
-    }
+    });
   };
-  const finishVoice = async () => {
+  const finishVoice = () => {
     const run = current.current; if (!run || run.ending || voice !== 'listening') return;
-    run.ending = true; setVoice('processing');
-    try {
-      const result = await app.phone.speech.finish();
-      if (current.current === run && !result.ok) { setVoiceError(result.error); current.current = null; run.controller.abort(); setVoice('idle'); }
-    } catch (error) {
-      if (current.current === run) { setVoiceError(error instanceof Error ? error.message : '结束语音录入失败，已保留输入内容。'); current.current = null; run.controller.abort(); setVoice('idle'); }
-    }
+    run.ending = true; setVoice('processing'); run.stop();
   };
   const recording = voice !== 'idle';
   return <View style={{ padding: 10, gap: 6, borderTopWidth: 1, borderColor: c.line, backgroundColor: c.surface }}>
