@@ -1,2 +1,8 @@
-import { defineApp } from "@zijinhua/app-sdk";
-export default defineApp({ main: () => require("./app").default, onDispose: () => require("./coach").disposeCoach() });
+import { defineApp } from '@zijinhua/app-sdk';
+export default defineApp({
+  main: () => require('./app').default,
+  onDispose: () => {
+    require('./coach').disposeCoach();
+    require('./voice').disposeVoice();
+  },
+});
