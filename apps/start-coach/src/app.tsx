@@ -12,9 +12,9 @@ import { VoiceButton } from './voice';
 import { Report } from './report';
 import { syncReminder } from './reminders';
 
-type Screen = 'home' | 'step' | 'timer' | 'milestone' | 'confirm' | 'report' | 'settings';
+type Screen = 'home' | 'step' | 'timer' | 'confirm' | 'report' | 'settings';
 type Request = { id: string; instruction: string; note: string };
-const screenFor = (s: Session | null): Screen => !s ? 'home' : s.status === 'ready' ? 'step' : s.status === 'finished' ? 'report' : s.status === 'confirm' ? 'confirm' : s.status === 'milestone' ? 'milestone' : 'timer';
+const screenFor = (s: Session | null): Screen => !s ? 'home' : s.status === 'ready' ? 'step' : s.status === 'finished' ? 'report' : s.status === 'confirm' ? 'confirm' : 'timer';
 function CoachApp() {
   const { colors: c } = useTheme(), state = useStore(), s = state.session, account = useRef(owner()).current;
   const [screen, setScreen] = useState<Screen>(() => screenFor(read().session));
@@ -75,7 +75,7 @@ function CoachApp() {
   const manualStart = () => { if (!s || !manualText.trim()) return; cancel(); const step = { action: manualText.trim().slice(0,120), reason: '就按你想好的做。', message: '', durationSec: minutes * 60, source: 'user' as const }; changeSession(s.id, current => start({ ...nextStep(current), step }), account); go('timer'); setNow(Date.now()); };
   const toggleStuck = () => { if (!s) return; cancel(); if (s.status === 'running') changeSession(s.id, pause, account); setNow(Date.now()); setStuckText(s.stuckAt); setStuckOpen(v => !v); };
   const beginTimer = () => { if (!s?.step) return; cancel(); go('timer'); changeSession(s.id, current => start({ ...current, step: current.step ? { ...current.step, durationSec: minutes * 60 } : null }), account); setNow(Date.now()); event('timer_started', account); };
-  const done = () => { if (!s?.step) return; cancel(); go('milestone'); changeSession(s.id, current => completeStep(current), account); app.haptics.trigger('notificationSuccess'); event('first_step_done_clicked', account); };
+  const done = () => { if (!s?.step) return; cancel(); go('timer'); changeSession(s.id, current => completeStep(current), account); app.haptics.trigger('notificationSuccess'); event('first_step_done_clicked', account); };
   const advance = () => { if (!s) return; cancel(); go('step'); changeSession(s.id, current => nextStep(current), account); setRequest({ id: s.id, instruction: '用户已经做完上一小步，沿着实际进展给一个下一步，不要重复已完成的动作。', note: '' }); };
   const end = () => { if (!s) return; cancel(); go('confirm'); changeSession(s.id, current => stop(current), account); event('round_ended', account); };
   const save = () => { if (!s) return; cancel(); go('report'); recordFinished(finish(s, note, confirmCurrent), account); };
@@ -87,7 +87,7 @@ function CoachApp() {
   const consent = <View style={{ gap: 20, paddingVertical: 24 }}><Seed size={48} /><Text style={[styles.title, { color: c.text }]}>一起找个开始。</Text><Text style={[styles.body, { color: c.ink2 }]}>你的任务会交给 AI 帮忙拆成小步骤。请别写入私人或保密信息。</Text><Button label="继续" onPress={() => { update(st => ({ ...st, aiAllowed: true }), account); if (s && !request) setRequest({ id: s.id, instruction: '帮用户找到一个现在能开始的小动作。', note: '' }); }} /><TextButton label="先返回" onPress={back} /></View>;
   const stuckForm = <View style={{ gap: 14 }}><Separator /><Text style={[styles.heading, { color: c.text }]}>卡在哪儿了？</Text><TextInput editable={!voiceBusy} accessibilityLabel="现在的卡点" value={stuckText} onChangeText={setStuckText} maxLength={1000} multiline placeholder="直接说就好，我来想办法。" placeholderTextColor={c.muted} style={[styles.field, { color: c.text, backgroundColor: c.canvas, borderWidth: 1, borderColor: c.line }]} /><TextButton label="先保存这个卡点，下次再来" onPress={() => { if(s)changeSession(s.id,current=>({...current,stuckAt:stuckText}),account); end(); }} /><VoiceButton active={active && stuckOpen} value={stuckText} onBusy={setVoiceBusy} onText={setStuckText} /><Button label="帮我换个办法" disabled={voiceBusy || !stuckText.trim()} onPress={() => ask('根据用户的实际卡点，换一个更合适、更小的动作。', stuckText)} /></View>;
   const durationPicker = <View style={styles.wrap}>{[3,5,10,15].map(value => <Pressable key={value} accessibilityRole="button" accessibilityState={{selected:minutes===value}} onPress={() => setMinutes(value)} style={{minHeight:44,paddingHorizontal:14,borderRadius:14,justifyContent:'center',backgroundColor:minutes===value?c.greenTint:c.canvas}}><Text style={{color:minutes===value?c.greenText:c.ink2}}>{value} 分钟</Text></Pressable>)}</View>;
-  const title = screen === 'home' ? '开工搭子' : screen === 'step' ? '现在这一小步' : screen === 'timer' ? '陪你开工' : screen === 'milestone' ? '已经开始了' : screen === 'confirm' ? '留下这次进展' : screen === 'report' ? '开工记录' : '设置';
+  const title = screen === 'home' ? '开工搭子' : screen === 'step' ? '现在这一小步' : screen === 'timer' ? '陪你开工' : screen === 'confirm' ? '留下这次进展' : screen === 'report' ? '开工记录' : '设置';
   const time = s ? elapsed(s, now) : 0;
   return <SafeAreaView style={[styles.root, { backgroundColor: c.surface }]} edges={['top', 'bottom']}>
     <View style={[styles.spread, { paddingHorizontal: 16, minHeight: 60 }]}>{screen === 'home' ? <Seed size={38} /> : <IconButton label="返回" onPress={back}><ArrowLeft size={21} color={c.text} /></IconButton>}<Text style={{ flex: 1, color: c.text, fontSize: 15, fontWeight: '600', textAlign: screen === 'home' ? 'left' : 'center' }}>{title}</Text><IconButton label={screen === 'settings' ? '关闭设置' : '设置'} onPress={settings}>{screen === 'settings' ? <X size={21} color={c.text} /> : <Settings2 size={20} color={c.ink2} />}</IconButton></View>
@@ -116,13 +116,9 @@ function CoachApp() {
       {screen === 'timer' && s?.step ? <>
         <Text numberOfLines={2} style={[styles.small, { color: c.ink2 }]}>{s.task}</Text>
         <View style={{ width: '100%', maxWidth: 270, aspectRatio: 1, alignSelf: 'center', marginVertical: 4 }}><ClockRing progress={(s.plannedSec - time) / s.step.durationSec} /><View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', padding: 30 }}><Text adjustsFontSizeToFit minimumFontScale={.5} numberOfLines={1} style={{ color: c.text, fontSize: 58, fontWeight: '400', fontVariant: ['tabular-nums'], letterSpacing: -2 }}>{formatDuration(s.plannedSec - time)}</Text><Text style={[styles.small, { color: c.ink2 }]}>{s.status === 'checkin' ? '时间到了，按你的节奏继续' : s.status === 'paused' ? '歇一会儿' : '就做眼前这一件'}</Text></View></View>
-        <Text selectable style={[styles.heading, { color: c.text, textAlign: 'center' }]}>{s.step.action}</Text><Button label="这一步做到了" icon={<Check size={20} color={c.surface} />} onPress={done} />
-        <View style={styles.spread}><TextButton label={s.status !== 'running' ? '继续做' : '暂停'} onPress={() => { cancel(); changeSession(s.id, current => current.status !== 'running' ? resume(current) : pause(current), account); setNow(Date.now()); }} /><TextButton label="先到这里" onPress={end} /><TextButton label="卡住了" disabled={busy} onPress={() => toggleStuck()} /></View>
+        <Text selectable style={[styles.heading, { color: c.text, textAlign: 'center' }]}>{s.step.action}</Text>{s.firstConfirmed ? <><Text accessibilityLiveRegion="polite" style={[styles.body,{color:c.greenText,textAlign:'center'}]}>这一步已完成，进展已保留。</Text><Button label="我知道下一步，接着做" onPress={openManual} /><TextButton label="请搭子帮我想下一步" onPress={advance} /><TextButton label="今天先到这里" onPress={end} /></> : <Button label="这一步做到了" icon={<Check size={20} color={c.surface} />} onPress={done} />}
+        {!s.firstConfirmed ? <View style={styles.spread}><TextButton label={s.status !== 'running' ? '继续做' : '暂停'} onPress={() => { cancel(); changeSession(s.id, current => current.status !== 'running' ? resume(current) : pause(current), account); setNow(Date.now()); }} /><TextButton label="先到这里" onPress={end} /><TextButton label="卡住了" disabled={busy} onPress={() => toggleStuck()} /></View> : null}
         {stuckOpen ? stuckForm : null}{busy ? <View style={styles.row}><ActivityIndicator color={c.ink2} /><Text style={[styles.small, { color: c.ink2 }]}>一起换个办法…</Text></View> : null}{error}
-      </> : null}
-      {screen === 'milestone' && s ? <>
-        <View style={{ paddingVertical: 22, gap: 24 }}><View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: c.greenTint, alignItems: 'center', justifyContent: 'center' }}><Check size={31} color={c.greenText} /></View><Text style={[styles.title, { color: c.text }]}>{s.completedSteps.length > 1 ? '又往前走了一步。' : '你已经开始了。'}</Text><Text style={[styles.body, { color: c.ink2 }]}>刚才一直没动手的事，已经有了进展。</Text><Separator /><Text selectable style={[styles.heading, { color: c.text }]}>{s.completedSteps.at(-1)?.action}</Text></View>
-        <Button label="我知道下一步，接着做" onPress={openManual} /><Button secondary label="请搭子帮我想下一步" icon={<ArrowRight size={19} color={c.surface} />} onPress={advance} /><TextButton label="今天先到这里" onPress={end} />
       </> : null}
       {screen === 'confirm' && s ? <>
         <Text style={[styles.title, { color: c.text }]}>{s.completedSteps.length ? '这次，已经往前走了。' : '先歇一下也好。'}</Text>
