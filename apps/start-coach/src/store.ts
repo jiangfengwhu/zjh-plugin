@@ -1,16 +1,19 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { getAppContext } from '@zijinhua/app-sdk';
 import {
+  type EnergyLevel,
   type Session,
   type Step,
   type Outcome,
   type Recording,
 } from './domain';
+
 export const app = getAppContext();
 export const data = app.scope('account');
 export const voiceFiles = app.scope('device').files;
 const key = 'start-coach.v1';
 export const owner = () => app.auth.getUser()?.id || 'guest';
+
 export type Event = { type: string; at: number; source: string };
 export type State = {
   draft: string;
@@ -22,6 +25,7 @@ export type State = {
   history: Session[];
   events: Event[];
 };
+
 const empty = (): State => ({
   draft: '',
   draftRecording: null,
@@ -32,12 +36,14 @@ const empty = (): State => ({
   history: [],
   events: [],
 });
+
 const text = (v: unknown, max = 1000): string =>
   typeof v === 'string' ? v.slice(0, max) : '';
 const number = (v: unknown, max: number) =>
   typeof v === 'number' && Number.isFinite(v)
     ? Math.max(0, Math.min(v, max))
     : 0;
+
 function readRecording(v: any): Recording | null {
   return v &&
     typeof v.path === 'string' &&
@@ -47,6 +53,7 @@ function readRecording(v: any): Recording | null {
     ? { path: v.path, durationMs: v.durationMs }
     : null;
 }
+
 function readStep(v: any): Step | null {
   if (!v || !['ai', 'user'].includes(v.source) || !text(v.action, 120))
     return null;
@@ -54,10 +61,11 @@ function readStep(v: any): Step | null {
     action: text(v.action, 120),
     reason: text(v.reason, 100),
     message: text(v.message, 100),
-    durationSec: Math.max(60, number(v.durationSec, 900) || 300),
+    durationSec: Math.max(60, number(v.durationSec, 900) || 180),
     source: v.source,
   };
 }
+
 function readSession(v: any): Session | null {
   if (
     !v ||
@@ -77,10 +85,13 @@ function readSession(v: any): Session | null {
     return null;
   const step = readStep(v.step);
   if (v.step && !step) return null;
-  const plannedSec = Math.max(60, number(v.plannedSec, 1000000000) || 300);
+  const plannedSec = Math.max(60, number(v.plannedSec, 1000000000) || 180);
   const outcome = ['first', 'more', 'none'].includes(v.outcome)
     ? (v.outcome as Outcome)
     : null;
+  const energy: EnergyLevel = ['low', 'mid', 'high'].includes(v.energy)
+    ? (v.energy as EnergyLevel)
+    : 'low';
   const resumedAt =
     typeof v.resumedAt === 'number' && Number.isFinite(v.resumedAt)
       ? number(v.resumedAt, 1e14)
@@ -97,6 +108,7 @@ function readSession(v: any): Session | null {
   return {
     id: text(v.id, 100),
     task: text(v.task),
+    energy,
     recording: readRecording(v.recording) || undefined,
     taskDone: v.taskDone === true,
     stuckAt: text(v.stuckAt),
@@ -114,6 +126,7 @@ function readSession(v: any): Session | null {
       typeof v.completedAt === 'number' ? number(v.completedAt, 1e14) : null,
   };
 }
+
 export function read(): State {
   try {
     const v = JSON.parse(data.storage.get(key) || 'null');
@@ -152,6 +165,7 @@ export function read(): State {
     return empty();
   }
 }
+
 const snapshot = () => `${owner()}|${data.storage.get(key) || ''}`;
 const subscribe = (listener: () => void) => {
   const a = data.storage.subscribe(key, listener),
@@ -161,10 +175,12 @@ const subscribe = (listener: () => void) => {
     b();
   };
 };
+
 export function useStore() {
   const raw = useSyncExternalStore(subscribe, snapshot, snapshot);
   return useMemo(read, [raw]);
 }
+
 const recordings = (s: State) =>
   new Set(
     [
@@ -173,6 +189,7 @@ const recordings = (s: State) =>
       ...s.history.map((h) => h.recording?.path),
     ].filter((path): path is string => !!path)
   );
+
 export function update(change: (s: State) => State, expectedOwner = owner()) {
   if (expectedOwner === owner()) {
     const previous = read(),
@@ -183,6 +200,7 @@ export function update(change: (s: State) => State, expectedOwner = owner()) {
       if (!kept.has(path)) void voiceFiles.remove(path).catch(() => {});
   }
 }
+
 export function changeSession(
   id: string,
   change: (s: Session) => Session,
@@ -193,6 +211,7 @@ export function changeSession(
     expectedOwner
   );
 }
+
 export function event(type: string, expectedOwner = owner()) {
   update(
     (s) => ({
@@ -204,6 +223,7 @@ export function event(type: string, expectedOwner = owner()) {
     expectedOwner
   );
 }
+
 export function clear(expectedOwner = owner()) {
   if (expectedOwner === owner()) {
     const paths = recordings(read());
@@ -211,6 +231,7 @@ export function clear(expectedOwner = owner()) {
     for (const path of paths) void voiceFiles.remove(path).catch(() => {});
   }
 }
+
 export function recordFinished(session: Session, expectedOwner = owner()) {
   update(
     (s) =>

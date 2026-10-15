@@ -1,10 +1,9 @@
 import React, { memo, useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTheme } from '@zijinhua/app-sdk/ui';
 import Animated, {
   cancelAnimation,
   Easing,
-  FadeIn,
   FadeInDown,
   ReduceMotion,
   useAnimatedStyle,
@@ -14,38 +13,46 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Circle, G, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+
 const light = {
-  paper: '#F0EBE1',
-  ink: '#302F29',
-  muted: '#6B6255',
-  line: '#CEC5B5',
-  clay: '#8E543D',
-  stone: '#CCC1AC',
-  stoneLight: '#DDD5C5',
-  moss: '#626A4F',
-  onClay: '#FFF8ED',
-  sheet: '#F8F3E9',
+  bg: '#FAF7F2',
+  surface: '#FFFFFF',
+  surfaceSubtle: '#F2ECE4',
+  ink: '#1C1B18',
+  muted: '#787166',
+  line: '#E6DFD5',
+  spark: '#E05A36',
+  sparkSoft: '#FCECE8',
+  moss: '#2E6F57',
+  mossSoft: '#E6F2ED',
+  amber: '#D9822B',
+  onSpark: '#FFFFFF',
+  sheet: '#FAF7F2',
 };
+
 const dark = {
-  paper: '#24241F',
-  ink: '#E9E1D3',
-  muted: '#B6AD9D',
-  line: '#4B493E',
-  clay: '#D39E82',
-  stone: '#57594B',
-  stoneLight: '#70715E',
-  moss: '#B8C19B',
-  onClay: '#29231F',
-  sheet: '#303029',
+  bg: '#121417',
+  surface: '#1C1F24',
+  surfaceSubtle: '#252930',
+  ink: '#F3EFEA',
+  muted: '#9A948C',
+  line: '#2E333B',
+  spark: '#F27A54',
+  sparkSoft: '#36221C',
+  moss: '#56B893',
+  mossSoft: '#1B332A',
+  amber: '#F0A452',
+  onSpark: '#121417',
+  sheet: '#1A1D22',
 };
-export function usePaper() {
+
+export function usePalette() {
   return useTheme().mode === 'dark' ? dark : light;
 }
-const pebble =
-  'M155 18C203 17 241 51 250 96C260 144 240 205 192 226C143 248 73 236 39 202C7 171 13 125 28 87C45 46 104 16 155 18Z';
-export const Paper = memo(function Paper() {
-  const c = usePaper();
+
+export const Backdrop = memo(function Backdrop() {
+  const c = usePalette();
   return (
     <View
       pointerEvents="none"
@@ -53,47 +60,39 @@ export const Paper = memo(function Paper() {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Svg
-        width="100%"
-        height="100%"
-        preserveAspectRatio="xMidYMid slice"
-        viewBox="0 0 400 850"
-      >
-        <Rect width="400" height="850" fill={c.paper} />
-        <Path
-          d="M280 0C211 148 401 253 348 392S240 669 400 850H400V0Z"
-          fill={c.stone}
-          opacity={0.12}
-        />
-        <G fill={c.ink} opacity={0.12}>
-          {Array.from({ length: 96 }, (_, i) => (
-            <Circle
-              key={i}
-              cx={(i * 97 + 19) % 400}
-              cy={(i * 139 + 11) % 850}
-              r={i % 4 === 0 ? 0.85 : 0.45}
-            />
-          ))}
-        </G>
-        <Line x1="26" y1="0" x2="26" y2="850" stroke={c.line} opacity={0.25} />
+      <Svg width="100%" height="100%" viewBox="0 0 400 850" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0%" stopColor={c.spark} stopOpacity="0.06" />
+            <Stop offset="50%" stopColor={c.bg} stopOpacity="0" />
+            <Stop offset="100%" stopColor={c.moss} stopOpacity="0.05" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="400" height="850" fill={c.bg} />
+        <Rect width="400" height="850" fill="url(#glow)" />
       </Svg>
     </View>
   );
 });
-export function InkButton({
+
+export function PrimaryButton({
   label,
   onPress,
   disabled = false,
-  secondary = false,
+  tone = 'spark',
   icon,
+  style,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  secondary?: boolean;
+  tone?: 'spark' | 'moss' | 'ink';
   icon?: React.ReactNode;
+  style?: ViewStyle;
 }) {
-  const c = usePaper();
+  const c = usePalette();
+  const bg = tone === 'moss' ? c.moss : tone === 'ink' ? c.ink : c.spark;
+  const fg = tone === 'ink' ? c.bg : c.onSpark;
   return (
     <Pressable
       accessibilityRole="button"
@@ -101,20 +100,56 @@ export function InkButton({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.button,
+        styles.primaryBtn,
         {
-          backgroundColor: secondary ? 'transparent' : c.ink,
-          borderColor: secondary ? c.line : c.ink,
-          opacity: disabled ? 0.4 : pressed ? 0.65 : 1,
+          backgroundColor: bg,
+          opacity: disabled ? 0.38 : pressed ? 0.82 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
+        },
+        style,
+      ]}
+    >
+      {icon}
+      <Text style={[styles.primaryBtnText, { color: fg }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function PillButton({
+  label,
+  onPress,
+  selected = false,
+  disabled = false,
+  icon,
+}: {
+  label: string;
+  onPress: () => void;
+  selected?: boolean;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}) {
+  const c = usePalette();
+  return (
+    <Pressable
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled, selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.pillBtn,
+        {
+          backgroundColor: selected ? c.sparkSoft : c.surface,
+          borderColor: selected ? c.spark : c.line,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
         },
       ]}
     >
       {icon}
       <Text
         style={{
-          color: secondary ? c.ink : c.paper,
-          fontSize: 15,
-          letterSpacing: 1,
+          color: selected ? c.spark : c.ink,
+          fontSize: 13,
+          fontWeight: selected ? '700' : '500',
         }}
       >
         {label}
@@ -122,16 +157,19 @@ export function InkButton({
     </Pressable>
   );
 }
-export function QuietButton({
+
+export function GhostButton({
   label,
   onPress,
   disabled = false,
+  danger = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  danger?: boolean;
 }) {
-  const c = usePaper();
+  const c = usePalette();
   return (
     <Pressable
       disabled={disabled}
@@ -139,28 +177,40 @@ export function QuietButton({
       accessibilityState={{ disabled }}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: 48,
+        minHeight: 44,
+        paddingHorizontal: 10,
         justifyContent: 'center',
-        opacity: disabled ? 0.35 : pressed ? 0.5 : 1,
+        alignItems: 'center',
+        opacity: disabled ? 0.35 : pressed ? 0.55 : 1,
       })}
     >
-      <Text style={{ color: c.muted, fontSize: 13, letterSpacing: 0.5 }}>
+      <Text
+        style={{
+          color: danger ? c.spark : c.muted,
+          fontSize: 13,
+          fontWeight: '600',
+        }}
+      >
         {label}
       </Text>
     </Pressable>
   );
 }
+
 export function IconButton({
   label,
   onPress,
   children,
   disabled = false,
+  subtle = false,
 }: {
   label: string;
   onPress: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+  subtle?: boolean;
 }) {
+  const c = usePalette();
   return (
     <Pressable
       accessibilityLabel={label}
@@ -169,17 +219,20 @@ export function IconButton({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        width: 48,
-        height: 48,
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: subtle ? c.surfaceSubtle : 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: disabled ? 0.35 : pressed ? 0.5 : 1,
+        opacity: disabled ? 0.35 : pressed ? 0.6 : 1,
       })}
     >
       {children}
     </Pressable>
   );
 }
+
 export function Arrival({
   children,
   id,
@@ -190,58 +243,77 @@ export function Arrival({
   return (
     <Animated.View
       key={id}
-      entering={FadeInDown.duration(430).reduceMotion(ReduceMotion.System)}
+      entering={FadeInDown.duration(320).reduceMotion(ReduceMotion.System)}
       style={{ flexGrow: 1 }}
     >
       {children}
     </Animated.View>
   );
 }
-export function Pebble({
-  size = 230,
+
+export function PulseOrb({
+  size = 210,
   alive = false,
   active = true,
+  tone = 'spark',
+  progress = 0,
   level,
   children,
 }: {
   size?: number;
   alive?: boolean;
   active?: boolean;
+  tone?: 'spark' | 'moss';
+  progress?: number;
   level?: SharedValue<number>;
   children?: React.ReactNode;
 }) {
-  const c = usePaper(),
-    breath = useSharedValue(0);
+  const c = usePalette();
+  const breath = useSharedValue(0);
+  const accent = tone === 'moss' ? c.moss : c.spark;
+  const soft = tone === 'moss' ? c.mossSoft : c.sparkSoft;
+
   useEffect(() => {
-    if (alive && active)
+    if (alive && active) {
       breath.value = withRepeat(
         withSequence(
           withTiming(1, {
-            duration: 2600,
+            duration: 2200,
             easing: Easing.inOut(Easing.sin),
             reduceMotion: ReduceMotion.System,
           }),
           withTiming(0, {
-            duration: 3200,
+            duration: 2600,
             easing: Easing.inOut(Easing.sin),
             reduceMotion: ReduceMotion.System,
           })
         ),
         -1
       );
-    else {
+    } else {
       cancelAnimation(breath);
-      breath.value = withTiming(0, { duration: 180 });
+      breath.value = withTiming(0, { duration: 200 });
     }
     return () => cancelAnimation(breath);
   }, [alive, active]);
-  const float = useAnimatedStyle(() => ({
+
+  const outerStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateY: -6 * breath.value },
-      { scale: 1 + 0.025 * breath.value + (level?.value || 0) * 0.055 },
-      { rotate: `${-3 + breath.value * 2}deg` },
+      { scale: 1 + 0.06 * breath.value + (level?.value || 0) * 0.14 },
+    ],
+    opacity: 0.45 + 0.35 * breath.value,
+  }));
+
+  const innerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: 1 + 0.025 * breath.value + (level?.value || 0) * 0.06 },
     ],
   }));
+
+  const r = (size - 16) / 2;
+  const circumference = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(1, progress));
+
   return (
     <View
       style={{
@@ -252,134 +324,180 @@ export function Pebble({
       }}
     >
       <Animated.View
-        style={[StyleSheet.absoluteFill, float]}
         pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            borderRadius: size / 2,
+            backgroundColor: soft,
+          },
+          outerStyle,
+        ]}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          {
+            width: size - 16,
+            height: size - 16,
+            borderRadius: (size - 16) / 2,
+            backgroundColor: c.surface,
+            borderWidth: 1.5,
+            borderColor: c.line,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          innerStyle,
+        ]}
       >
-        <Svg width="100%" height="100%" viewBox="0 0 270 260">
-          <Path d={pebble} fill={c.stone} />
-          <Path
-            d="M30 127C29 72 95 28 151 27C191 27 220 46 236 81C203 55 170 59 139 77C102 99 78 137 30 127Z"
-            fill={c.stoneLight}
-          />
-          <Path
-            d="M70 199C119 221 185 214 215 174"
-            stroke={c.ink}
-            opacity={0.12}
-            strokeWidth="1"
-            fill="none"
-          />
-          <G fill={c.ink} opacity={0.14}>
-            {Array.from({ length: 32 }, (_, i) => (
-              <Circle
-                key={i}
-                cx={65 + ((i * 41) % 137)}
-                cy={65 + ((i * 29) % 110)}
-                r={i % 3 ? 0.6 : 1.1}
-              />
-            ))}
-          </G>
-          <Path
-            d="M183 65L166 103L177 120L144 153"
-            stroke={c.paper}
-            strokeWidth="1.2"
-            fill="none"
-            opacity={0.6}
-          />
-        </Svg>
+        {clamped > 0 ? (
+          <Svg
+            width={size - 16}
+            height={size - 16}
+            style={StyleSheet.absoluteFill}
+          >
+            <Circle
+              cx={(size - 16) / 2}
+              cy={(size - 16) / 2}
+              r={r - 2}
+              stroke={accent}
+              strokeWidth={3.5}
+              fill="none"
+              strokeDasharray={`${circumference * clamped} ${circumference}`}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${(size - 16) / 2} ${(size - 16) / 2})`}
+            />
+          </Svg>
+        ) : null}
       </Animated.View>
       {children}
     </View>
   );
 }
-export function Trace({ count = 0 }: { count?: number }) {
-  const c = usePaper();
+
+export function SparkTrail({ count = 0 }: { count?: number }) {
+  const c = usePalette();
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 5,
-        minHeight: 24,
-      }}
-    >
-      {Array.from({ length: Math.min(count || 1, 5) }, (_, i) => (
-        <Animated.View
-          key={`${count ? 'stone' : 'empty'}-${i}`}
-          entering={FadeInDown.duration(600).reduceMotion(ReduceMotion.System)}
+    <View style={[styles.row, { gap: 6 }]}>
+      <View
+        style={{
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          borderRadius: 12,
+          backgroundColor: count > 0 ? c.mossSoft : c.surfaceSubtle,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+        }}
+      >
+        <View
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 4,
+            backgroundColor: count > 0 ? c.moss : c.muted,
+          }}
+        />
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: '700',
+            color: count > 0 ? c.moss : c.muted,
+          }}
         >
-          <Svg
-            width={i % 2 ? 14 : 20}
-            height={i % 2 ? 11 : 15}
-            viewBox="0 0 270 260"
-          >
-            <Path d={pebble} fill={count ? c.moss : c.line} />
-          </Svg>
-        </Animated.View>
-      ))}
+          已推进 {count} 步
+        </Text>
+      </View>
     </View>
   );
 }
+
 export function Rule() {
-  const c = usePaper();
+  const c = usePalette();
   return <View style={{ height: 1, backgroundColor: c.line, width: '100%' }} />;
 }
+
 export const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
-    paddingLeft: 28,
-    paddingRight: 12,
-    minHeight: 64,
+    paddingHorizontal: 20,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   page: {
-    paddingHorizontal: 32,
-    paddingBottom: 30,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
     flexGrow: 1,
     width: '100%',
-    maxWidth: 620,
+    maxWidth: 580,
     alignSelf: 'center',
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   spread: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
+  card: {
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    gap: 14,
+  },
   title: {
-    fontFamily: 'serif',
-    fontSize: 38,
-    lineHeight: 54,
-    fontWeight: '400',
-    letterSpacing: 2,
+    fontSize: 28,
+    lineHeight: 38,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   heading: {
-    fontFamily: 'serif',
-    fontSize: 25,
-    lineHeight: 38,
-    letterSpacing: 1,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
   },
-  body: { fontSize: 15, lineHeight: 26, letterSpacing: 0.5 },
-  small: { fontSize: 12, lineHeight: 21, letterSpacing: 1 },
-  eyebrow: { fontSize: 10, lineHeight: 18, letterSpacing: 2.5 },
-  button: {
-    minHeight: 48,
+  body: { fontSize: 15, lineHeight: 24 },
+  small: { fontSize: 12, lineHeight: 18 },
+  eyebrow: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  primaryBtn: {
+    minHeight: 52,
     paddingHorizontal: 22,
-    paddingVertical: 13,
-    borderRadius: 2,
+    paddingVertical: 14,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primaryBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  pillBtn: {
+    minHeight: 38,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 6,
   },
   sheet: {
-    maxHeight: '78%',
-    borderTopLeftRadius: 4,
+    maxHeight: '82%',
+    borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 28,
-    gap: 20,
+    padding: 24,
+    gap: 18,
   },
 });

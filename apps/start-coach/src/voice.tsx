@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Video from 'react-native-video';
-import { Mic, Play, Square } from 'lucide-react-native';
+import { Mic, Play, Square, Volume2 } from 'lucide-react-native';
 import {
   cancelAnimation,
   useSharedValue,
@@ -9,42 +9,49 @@ import {
 } from 'react-native-reanimated';
 import { app, owner, voiceFiles } from './store';
 import { type Recording } from './domain';
-import { Pebble, styles, usePaper } from './ui';
+import { PulseOrb, styles, usePalette } from './ui';
+
 export type VoiceResult = { text: string; recording: Recording };
 const cleanups = new Set<() => void>();
+
 export function disposeVoice() {
   cleanups.forEach((fn) => fn());
   cleanups.clear();
 }
-export function VoiceStone({
+
+export function VoiceCapture({
   active,
   recording,
   onResult,
+  onPartialText,
   onBusy,
   compact = false,
 }: {
   active: boolean;
   recording?: Recording | null;
   onResult: (result: VoiceResult) => void;
+  onPartialText?: (text: string) => void;
   onBusy?: (busy: boolean) => void;
   compact?: boolean;
 }) {
-  const c = usePaper(),
+  const c = usePalette(),
     [phase, setPhase] = useState<
       'idle' | 'preparing' | 'listening' | 'finishing' | 'playing'
     >('idle'),
     [error, setError] = useState('');
+
   const session = useRef<AbortController | null>(null),
     long = useRef(false),
     held = useRef(false),
     wasActive = useRef(active),
     phaseRef = useRef(phase);
   phaseRef.current = phase;
-  const callbacks = useRef({ onResult, onBusy });
-  callbacks.current = { onResult, onBusy };
+  const callbacks = useRef({ onResult, onPartialText, onBusy });
+  callbacks.current = { onResult, onPartialText, onBusy };
   wasActive.current = active;
   const level = useSharedValue(0),
     token = useRef(0);
+
   useEffect(() => {
     const stop = () => {
       held.current = false;
@@ -63,9 +70,11 @@ export function VoiceStone({
       cleanups.delete(stop);
     };
   }, [active]);
+
   useEffect(() => {
     if (phaseRef.current === 'playing') setPhase('idle');
   }, [recording?.path]);
+
   const begin = async () => {
     if (session.current || !wasActive.current) return;
     long.current = true;
@@ -74,6 +83,7 @@ export function VoiceStone({
     setPhase('preparing');
     phaseRef.current = 'preparing';
     callbacks.current.onBusy?.(true);
+
     const controller = new AbortController(),
       account = owner(),
       version = ++token.current,
@@ -81,11 +91,13 @@ export function VoiceStone({
         .toString(36)
         .slice(2, 10)}.wav`;
     session.current = controller;
+
     try {
       const permission = await app.phone.speech.requestPermission();
       if (controller.signal.aborted) return;
       if (!permission.granted)
-        throw new Error('允许使用麦克风后，就可以说给搭子听。');
+        throw new Error('需要开启麦克风权限，或者直接在上方输入框打字。');
+
       const prepared = await app.phone.speech.prepare({
         signal: controller.signal,
       });
@@ -95,9 +107,10 @@ export function VoiceStone({
         return;
       }
       if (!held.current) {
-        setError('语音已准备好，再按住说给搭子听。');
+        setError('麦克风已就绪，请再按住说话。');
         return;
       }
+
       const result = await app.phone.speech.recognize({
         signal: controller.signal,
         recordingPath: path,
@@ -116,13 +129,19 @@ export function VoiceStone({
             setPhase('finishing');
           }
         },
+        onPartial: (spoken) => {
+          if (!controller.signal.aborted && spoken.trim()) {
+            callbacks.current.onPartialText?.(spoken.trim().slice(0, 1000));
+          }
+        },
         onVolume: (db) => {
           if (!controller.signal.aborted)
             level.value = withTiming(Math.max(0, Math.min(1, (db + 55) / 40)), {
-              duration: 110,
+              duration: 100,
             });
         },
       });
+
       if (
         controller.signal.aborted ||
         version !== token.current ||
@@ -136,9 +155,10 @@ export function VoiceStone({
         return;
       }
       if (!result.recording || !result.text.trim())
-        throw new Error('这次没听清，再按住说一次。');
+        throw new Error('没听清，可以再按住说一次，或直接打字输入。');
       if (result.text.length > 1000)
-        throw new Error('这次说得有点长，先说眼前最想开始的一件事。');
+        throw new Error('内容有点长，先挑最想破冰的一件事吧。');
+
       callbacks.current.onResult({
         text: result.text.trim(),
         recording: result.recording,
@@ -148,7 +168,7 @@ export function VoiceStone({
       void voiceFiles.remove(path).catch(() => {});
       if (!controller.signal.aborted && version === token.current)
         setError(
-          e instanceof Error ? e.message : '没能收下这段声音，请再试一次。'
+          e instanceof Error ? e.message : '录音未成功，可重试或直接打字。'
         );
     } finally {
       if (session.current === controller) {
@@ -160,44 +180,47 @@ export function VoiceStone({
       }
     }
   };
+
   const release = () => {
     held.current = false;
     if (!session.current) return;
-    if (phaseRef.current === 'preparing') {
-      // Permission/model setup may show a system dialog. Finish setup without
-      // recording after the finger is lifted; the next hold starts capture.
-      return;
-    } else {
-      phaseRef.current = 'finishing';
-      setPhase('finishing');
-      void app.phone.speech.finish().catch(() => session.current?.abort());
-    }
+    if (phaseRef.current === 'preparing') return;
+    phaseRef.current = 'finishing';
+    setPhase('finishing');
+    void app.phone.speech.finish().catch(() => session.current?.abort());
   };
+
   const label =
     phase === 'preparing'
-      ? '正在准备麦克风'
+      ? '正在唤醒麦克风…'
       : phase === 'listening'
-      ? '我在听，松手结束'
+      ? '正在听，松手完成识别…'
       : phase === 'finishing'
-      ? '收好这段声音…'
+      ? '正在整理你说的话…'
       : phase === 'playing'
-      ? '正在回放，点击停止'
+      ? '正在回放原声 · 轻点停止'
       : recording
-      ? '点一下回放 · 按住重说'
-      : '按住，说说想做的事';
+      ? '按住重新说 · 轻点回放原声'
+      : '按住倾诉卡住的事';
+
+  const orbSize = compact ? 88 : 124;
+
   return (
-    <View style={{ alignItems: 'center', gap: 16 }}>
+    <View style={{ alignItems: 'center', gap: 10 }}>
       <Pressable
-        style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+        style={({ pressed }) => ({
+          opacity: pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.96 : 1 }],
+        })}
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityHint="长按开始录音，松手结束；有录音时轻点回放"
+        accessibilityHint="长按开始语音倾诉，松手结束；有录音时轻点回放"
         accessibilityState={{
           busy: phase === 'preparing' || phase === 'finishing',
           disabled: !active,
         }}
         disabled={!active || phase === 'finishing'}
-        delayLongPress={220}
+        delayLongPress={180}
         onPressIn={() => {
           long.current = false;
         }}
@@ -211,40 +234,80 @@ export function VoiceStone({
           setPhase((p) => (p === 'playing' ? 'idle' : 'playing'));
         }}
       >
-        <Pebble
-          size={compact ? 100 : 235}
+        <PulseOrb
+          size={orbSize}
           active={active}
           level={level}
           alive={phase === 'listening' || phase === 'playing'}
+          tone={phase === 'listening' ? 'spark' : 'moss'}
         >
-          {phase === 'playing' ? (
-            <Square size={compact ? 19 : 29} color={c.ink} strokeWidth={1.3} />
-          ) : phase === 'idle' && recording ? (
-            <Play size={compact ? 21 : 33} color={c.ink} strokeWidth={1.3} />
-          ) : (
-            <Mic size={compact ? 21 : 33} color={c.ink} strokeWidth={1.3} />
-          )}
-        </Pebble>
+          <View
+            style={{
+              width: orbSize - 36,
+              height: orbSize - 36,
+              borderRadius: (orbSize - 36) / 2,
+              backgroundColor:
+                phase === 'listening' ? c.spark : c.surfaceSubtle,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {phase === 'playing' ? (
+              <Square size={compact ? 18 : 24} color={c.ink} />
+            ) : phase === 'idle' && recording ? (
+              <Volume2 size={compact ? 20 : 26} color={c.moss} />
+            ) : (
+              <Mic
+                size={compact ? 20 : 26}
+                color={phase === 'listening' ? c.onSpark : c.spark}
+              />
+            )}
+          </View>
+        </PulseOrb>
       </Pressable>
-      <Text
-        accessibilityLiveRegion="polite"
-        style={[styles.small, { color: c.muted, textAlign: 'center' }]}
-      >
-        {label}
-      </Text>
-      {recording && phase === 'idle' ? (
-        <Text style={[styles.eyebrow, { color: c.clay }]}>
-          {Math.max(1, Math.round(recording.durationMs / 1000))} 秒的声音
+
+      <View style={[styles.row, { gap: 6 }]}>
+        <Text
+          accessibilityLiveRegion="polite"
+          style={[
+            styles.small,
+            {
+              color: phase === 'listening' ? c.spark : c.muted,
+              fontWeight: phase === 'listening' ? '700' : '500',
+            },
+          ]}
+        >
+          {label}
         </Text>
-      ) : null}
+        {recording && phase === 'idle' ? (
+          <View
+            style={{
+              paddingHorizontal: 7,
+              paddingVertical: 2,
+              borderRadius: 8,
+              backgroundColor: c.mossSoft,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            <Play size={10} color={c.moss} />
+            <Text style={{ fontSize: 10, fontWeight: '700', color: c.moss }}>
+              {Math.max(1, Math.round(recording.durationMs / 1000))}s
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
       {error ? (
         <Text
           accessibilityLiveRegion="polite"
-          style={[styles.body, { color: c.clay, textAlign: 'center' }]}
+          style={[styles.small, { color: c.spark, textAlign: 'center' }]}
         >
           {error}
         </Text>
       ) : null}
+
       {active && recording && phase === 'playing' ? (
         <Video
           source={{ uri: voiceFiles.uri(recording.path) }}
@@ -255,7 +318,7 @@ export function VoiceStone({
           onEnd={() => setPhase('idle')}
           onError={() => {
             setPhase('idle');
-            setError('这段录音暂时无法回放，可以按住重新录一段。');
+            setError('原声回放失败，可以重新按住录一段。');
           }}
         />
       ) : null}

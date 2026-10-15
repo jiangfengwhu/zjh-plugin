@@ -1,4 +1,6 @@
+export type EnergyLevel = 'low' | 'mid' | 'high';
 export type Outcome = 'first' | 'more' | 'none';
+
 export type Step = {
   action: string;
   reason: string;
@@ -6,11 +8,22 @@ export type Step = {
   durationSec: number;
   source: 'ai' | 'user';
 };
-export type CompletedStep = { action: string; at: number };
-export type Recording = { path: string; durationMs: number };
+
+export type CompletedStep = {
+  action: string;
+  at: number;
+  spentSec?: number;
+};
+
+export type Recording = {
+  path: string;
+  durationMs: number;
+};
+
 export type Session = {
   id: string;
   task: string;
+  energy?: EnergyLevel;
   recording?: Recording;
   step: Step | null;
   completedSteps: CompletedStep[];
@@ -33,17 +46,23 @@ export type Session = {
   outcome: Outcome | null;
   completedAt: number | null;
 };
-export function makeSession(task: string, now = Date.now()): Session {
+
+export function makeSession(
+  task: string,
+  energy: EnergyLevel = 'low',
+  now = Date.now()
+): Session {
   return {
     id: `start-${now}-${Math.random().toString(36).slice(2, 8)}`,
     task: task.trim().slice(0, 1000),
+    energy,
     step: null,
     completedSteps: [],
     note: '',
     taskDone: false,
     stuckAt: '',
     startedAt: now,
-    plannedSec: 300,
+    plannedSec: 180,
     elapsedSec: 0,
     resumedAt: null,
     status: 'ready',
@@ -52,6 +71,7 @@ export function makeSession(task: string, now = Date.now()): Session {
     completedAt: null,
   };
 }
+
 export function elapsed(s: Session, now = Date.now()): number {
   const extra =
     s.status === 'running' && s.resumedAt !== null
@@ -59,6 +79,7 @@ export function elapsed(s: Session, now = Date.now()): number {
       : 0;
   return Math.min(s.plannedSec, Math.max(0, s.elapsedSec + extra));
 }
+
 export function start(s: Session, now = Date.now()): Session {
   if (!s.step) return s;
   return {
@@ -68,6 +89,7 @@ export function start(s: Session, now = Date.now()): Session {
     status: 'running',
   };
 }
+
 export function pause(s: Session, now = Date.now()): Session {
   return {
     ...s,
@@ -76,24 +98,28 @@ export function pause(s: Session, now = Date.now()): Session {
     status: 'paused',
   };
 }
+
 export function resume(s: Session, now = Date.now()): Session {
   return {
     ...s,
     plannedSec:
       s.elapsedSec >= s.plannedSec
-        ? Math.min(1000000000, s.elapsedSec + (s.step?.durationSec || 300))
+        ? Math.min(1000000000, s.elapsedSec + (s.step?.durationSec || 180))
         : s.plannedSec,
-    resumedAt: now,
+    resumedAt: null,
     status: 'running',
   };
 }
+
 export function stop(s: Session, now = Date.now()): Session {
   return { ...pause(s, now), status: 'confirm' };
 }
+
 export function completeStep(s: Session, now = Date.now()): Session {
   if (!s.step || s.firstConfirmed || s.status === 'finished') return s;
+  const paused = pause(s, now);
   return {
-    ...pause(s, now),
+    ...paused,
     status: 'milestone',
     firstConfirmed: true,
     completedSteps: [
@@ -102,9 +128,11 @@ export function completeStep(s: Session, now = Date.now()): Session {
     ].slice(-60),
   };
 }
+
 export function nextStep(s: Session): Session {
   return { ...pause(s), status: 'ready', step: null, firstConfirmed: false };
 }
+
 export function finish(
   s: Session,
   note: string,
@@ -125,10 +153,14 @@ export function finish(
     completedAt: now,
   };
 }
+
 export function formatDuration(seconds: number): string {
   const whole = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+  return `${String(Math.floor(whole / 60)).padStart(2, '0')}:${String(
+    whole % 60
+  ).padStart(2, '0')}`;
 }
+
 export function parseStep(raw: string): Step {
   const first = raw.indexOf('{'),
     last = raw.lastIndexOf('}');
@@ -157,7 +189,7 @@ export function parseStep(raw: string): Step {
       typeof value.duration_sec === 'number' &&
       Number.isFinite(value.duration_sec)
         ? Math.round(Math.max(60, Math.min(900, value.duration_sec)) / 60) * 60
-        : 300,
+        : 180,
     source: 'ai',
   };
 }
