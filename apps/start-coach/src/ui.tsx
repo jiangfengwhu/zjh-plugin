@@ -338,6 +338,9 @@ export function PulseOrb({
         pointerEvents="none"
         style={[
           {
+            position: 'absolute',
+            top: 8,
+            left: 8,
             width: size - 16,
             height: size - 16,
             borderRadius: (size - 16) / 2,
@@ -370,7 +373,15 @@ export function PulseOrb({
           </Svg>
         ) : null}
       </Animated.View>
-      {children}
+      <View
+        pointerEvents="box-none"
+        style={[
+          StyleSheet.absoluteFill,
+          { alignItems: 'center', justifyContent: 'center' },
+        ]}
+      >
+        {children}
+      </View>
     </View>
   );
 }

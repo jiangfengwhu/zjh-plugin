@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import Video from 'react-native-video';
 import { Mic, Play, Square, Volume2 } from 'lucide-react-native';
 import {
@@ -184,7 +184,7 @@ export function VoiceCapture({
   const release = () => {
     held.current = false;
     if (!session.current) return;
-    if (phaseRef.current === 'preparing') return;
+    if (phaseRef.current !== 'listening') return;
     phaseRef.current = 'finishing';
     setPhase('finishing');
     void app.phone.speech.finish().catch(() => session.current?.abort());
@@ -206,10 +206,14 @@ export function VoiceCapture({
   const orbSize = compact ? 88 : 124;
 
   return (
-    <View style={{ alignItems: 'center', gap: 10 }}>
+    <View style={{ width: '100%', alignItems: 'center', gap: 12 }}>
       <Pressable
         style={({ pressed }) => ({
-          opacity: pressed ? 0.85 : 1,
+          width: orbSize,
+          height: orbSize,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: !active ? 0.45 : pressed ? 0.85 : 1,
           transform: [{ scale: pressed ? 0.96 : 1 }],
         })}
         accessibilityRole="button"
@@ -252,7 +256,9 @@ export function VoiceCapture({
               justifyContent: 'center',
             }}
           >
-            {phase === 'playing' ? (
+            {phase === 'preparing' || phase === 'finishing' ? (
+              <ActivityIndicator size="small" color={c.spark} />
+            ) : phase === 'playing' ? (
               <Square size={compact ? 18 : 24} color={c.ink} />
             ) : phase === 'idle' && recording ? (
               <Volume2 size={compact ? 20 : 26} color={c.moss} />
@@ -266,7 +272,18 @@ export function VoiceCapture({
         </PulseOrb>
       </Pressable>
 
-      <View style={[styles.row, { gap: 6 }]}>
+      <View
+        style={[
+          styles.row,
+          {
+            minHeight: compact ? 36 : 42,
+            maxWidth: '100%',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 6,
+          },
+        ]}
+      >
         <Text
           accessibilityLiveRegion="polite"
           style={[
@@ -274,6 +291,8 @@ export function VoiceCapture({
             {
               color: phase === 'listening' ? c.spark : c.muted,
               fontWeight: phase === 'listening' ? '700' : '500',
+              flexShrink: 1,
+              textAlign: 'center',
             },
           ]}
         >
