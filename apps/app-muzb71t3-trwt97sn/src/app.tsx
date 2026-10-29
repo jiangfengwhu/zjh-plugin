@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { View, Pressable, ScrollView, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAppContext, CloudRecord } from "@zijinhua/app-sdk";
-import { useTheme, Text, TextInput, Button, Icon, Surface } from "@zijinhua/app-sdk/ui";
+import { useTheme, Text, TextInput, Button, Icon, Surface, AppImage } from "@zijinhua/app-sdk/ui";
 
 type Post = {
   text: string;
+  authorName?: string;
+  authorAvatarUrl?: string | null;
 };
 
 export default function App() {
@@ -36,9 +38,16 @@ export default function App() {
   const handleCompose = async () => {
     if (!text.trim()) return;
 
+    const user = await ctx.auth.requireLogin();
+    if (!user) return;
+
     setLoading(true);
     try {
-      await ctx.cloud.public.collection<Post>("posts").create({ text });
+      await ctx.cloud.public.collection<Post>("posts").create({
+        text,
+        authorName: user.name,
+        authorAvatarUrl: user.avatarUrl
+      });
       setText("");
       ctx.toast.show("发布成功", "success");
       fetchPosts();
@@ -50,13 +59,26 @@ export default function App() {
   };
 
   const renderPost = ({ item }: { item: CloudRecord<Post> }) => {
+    const defaultAvatar = ctx.assets.uri("icon.svg");
     return (
-      <Surface tone="raised" style={{ padding: 16, marginBottom: 12, borderRadius: 12 }}>
-        <Text style={{ fontSize: 16, color: colors.text }}>{item.data.text}</Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-          <Text style={{ fontSize: 12, color: colors.muted }}>{new Date(item.createdAt).toLocaleString()}</Text>
+      <View style={{ flexDirection: 'row', marginBottom: 20, paddingHorizontal: 16 }}>
+        <AppImage
+          source={{ uri: item.data.authorAvatarUrl || defaultAvatar }}
+          style={{ width: 44, height: 44, borderRadius: 8, marginRight: 12, backgroundColor: colors.surface }}
+          resizeMode="cover"
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 4 }}>
+            {item.data.authorName || '匿名用户'}
+          </Text>
+          <Text style={{ fontSize: 16, color: colors.text, lineHeight: 22 }}>
+            {item.data.text}
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 8 }}>
+            {new Date(item.createdAt).toLocaleString()}
+          </Text>
         </View>
-      </Surface>
+      </View>
     );
   };
 
@@ -74,9 +96,9 @@ export default function App() {
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ paddingVertical: 16 }}
         ListHeaderComponent={
-          <View style={{ marginBottom: 24 }}>
+          <View style={{ marginBottom: 24, paddingHorizontal: 16 }}>
             <TextInput
               multiline
               placeholder="分享你的生活..."
